@@ -46,7 +46,7 @@ greenlit issues
          Bootstraps a fresh implementation session with the handoff brief
 ```
 
-Sprint orchestration layered on top: `/sprint-start` (pick the cohort), `/sprint-plan` (auto-dispatch planners across the sprint), `/sprint-walkthrough` (decide every open sprint item — ready plans, reviewer escalations, and scope-gate stucks — in one pass), `/sprint-implement`, `/sprint-end`, `/sprint-retro`, `/sprint-doctor` (health check), `/sprint` (status oracle).
+Sprint orchestration layered on top: `/sprint-start` (pick the cohort), `/sprint-plan` (auto-dispatch planners across the sprint), `/sprint-walkthrough` (decide every open sprint item — ready plans, reviewer escalations, and scope-gate stucks — in one pass), `/sprint-implement`, `/sprint-end`, `/sprint-retro`, `/sprint-doctor` (health check), `/sprint` (status oracle — script-backed, sub-second, zero LLM cost).
 
 ## Install
 
@@ -140,9 +140,12 @@ A future release will move this behind a `{{DEFAULT_PROTOCOL}}` substitution tha
 docs/templates/commands/    # 16 skill templates — source of truth
 docs/templates/snippets/    # shared snippets inlined at generation time (e.g. glossary)
 scripts/generate-skills.mjs # regenerates .claude/commands/ from templates
+scripts/sprint.mjs          # /sprint renderer — pure script, no LLM tokens
 ```
 
-Templates are the source of truth. The live `.claude/commands/*.md` files are generated — edit templates, run `node scripts/generate-skills.mjs`, regenerate.
+Templates are the source of truth for skills. The live `.claude/commands/*.md` files are generated — edit templates, run `node scripts/generate-skills.mjs`, regenerate.
+
+**One exception:** `/sprint` is a thin wrapper around `scripts/sprint.mjs`. It's mechanical (label-counting, normalized progress bars, deterministic CTA selection) — no reasoning required, so it doesn't need an LLM round-trip on every call. The slash command's only job is to invoke the script and relay stdout verbatim. To change `/sprint` behavior (color mapping, layout, recommendation rules), edit `scripts/sprint.mjs`, not the template. The script's header comment documents the state→color mapping and largest-remainder rounding logic.
 
 The generator supports two substitutions and a build-time include macro:
 - `{{OPERATOR}}` — replaced with the operator's name
