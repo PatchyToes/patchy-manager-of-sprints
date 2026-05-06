@@ -97,6 +97,30 @@ The IK files are the system's memory. They start sparse and get more useful over
 
 If your repo already uses any of these names with different semantics, the setup will warn you. Rename your existing label first.
 
+## Tuning planner cost (forcing 1-round)
+
+The three-round planner runs three separate critic dispatches per issue — high-quality output but token-heavy. The one-round planner runs a single combined critic pass — much cheaper, slightly less rigorous. If you'd prefer 1-round as your default, two ways:
+
+**Per-issue override.** Invoke the planner directly, ignoring the scope gate's recommendation:
+
+```
+/plan-issue-one-round 42
+```
+
+The scope-gate verdict is advisory; invoking a planner directly overrides whatever the gate said.
+
+**Make 1-round the default.** Edit `docs/templates/commands/scope-issue.md` Phase E. Change the line:
+
+> Default to PLAN-3-ROUND when ambiguous. PLAN-1-ROUND is an optimization, not a fallback.
+
+to:
+
+> Default to PLAN-1-ROUND when ambiguous. PLAN-3-ROUND only for explicit cross-system / schema-change signals.
+
+Regenerate the live skills: `node scripts/generate-skills.mjs`. The gate now emits PLAN-1-ROUND for everything except clearly multi-surface work.
+
+A future release will move this behind a `{{DEFAULT_PROTOCOL}}` substitution that `/setup-pipeline` asks about during onboarding, so you don't have to edit the prompt directly. For now, the one-line edit is the path.
+
 ## Repo layout
 
 ```
