@@ -117,12 +117,20 @@ Then implement the plan. When you ship:
     Closes #N
 - Verify with `git log -1 HEAD` before push that `Closes #N` is on its own line in the body
 - File the tracking issues listed in the plan's ISSUE MANAGEMENT section BEFORE pushing
-- IF YOU DISCOVER CROSS-ISSUE IMPACT during implementation (your work changes another sprint
-  issue's plan assumptions, blocks it, unblocks it, or makes it stale), append a one-line
-  entry to the sprint manifest's ## Sprint scratchpad section BEFORE pushing. Find the
-  manifest with `ls docs/sprints/*.md | sort -r | head -1`. Format:
-    - YYYY-MM-DD · #N → affects #M: one-line note (e.g. "shipped flag X, plan #350 step 3 no longer needed")
-  This is how parallel implementation sessions stay aware of each other.
+- SCRATCHPAD WRITES (cross-issue impact propagation):
+  - IF you discover during implementation that your work materially changes another sprint
+    issue's plan (you shipped a flag they assumed wouldn't exist, changed a signature they
+    referenced, found their issue body is wrong, etc.), append a one-line entry to the
+    sprint manifest's ## Sprint scratchpad / ### Active section BEFORE pushing. Find the
+    manifest with `ls docs/sprints/*.md | sort -r | head -1`. Format:
+      - YYYY-MM-DD · #N → affects #M: one-line note (e.g. "shipped flag X, plan #350 step 3 no longer needed")
+    DO NOT write entries for: same-file touches without behavior changes, vague "be careful"
+    notes, or your own bugs. The bar is "would this AI need this to plan correctly?"
+  - IF the scratchpad's ### Active section had an entry mentioning your issue (#N) and
+    your work resolved it, MOVE that entry from ### Active to ### Resolved with
+    strikethrough + a resolution note. Format:
+      - ~~YYYY-MM-DD · #shipped → affects #N: original note~~ → resolved YYYY-MM-DD: how addressed
+    This prevents stale entries from alarming downstream sessions about issues already fixed.
 - After push lands, write the debrief to docs/debriefs/issue-N.md
 
 The plan went through {three-round | one-round} planning + adversarial reviewer pass.

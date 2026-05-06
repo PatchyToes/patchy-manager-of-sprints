@@ -264,19 +264,39 @@ Create `docs/sprints/{SPRINT_ID}.md`:
 
 ## Sprint scratchpad
 
-<!-- This section is the sprint's running state. Any sprint-* skill (plan,
-walkthrough, implement) reads this before starting work and surfaces entries
-relevant to its target issue. Append a line whenever you ship something or
-make a decision that affects sibling sprint issues. Format:
+<!-- The sprint's running state. /sprint-plan, /sprint-walkthrough, and
+/sprint-implement read the ### Active subsection before starting work and
+surface entries relevant to their target issue.
 
-  - YYYY-MM-DD · #shipped → affects #N: one-line note
-  - YYYY-MM-DD · general: one-line note (no specific target issue)
-  - YYYY-MM-DD · operator: free-form note for downstream skills
+WRITE RULE: only append an entry if your work materially changes another
+sprint issue's plan. Examples that qualify:
+  - You shipped a flag #350's plan assumed wouldn't exist
+  - You changed a function signature #341 referenced
+  - You found the issue body for #N is wrong and didn't fix it
+Examples that don't qualify (don't write — would just be noise):
+  - "I touched the same file as another issue" (not enough — needs a
+     behavior change, not just a touch)
+  - "Be careful with X" (too vague — say what specifically changed)
+  - "Tests broke" (your problem, not theirs)
 
-Entries persist for the sprint's lifetime. /sprint-end carries unresolved
-items into the retro. -->
+LIFECYCLE: write to ### Active when impact is discovered; move the entry
+to ### Resolved (with strikethrough + resolution note) when no longer
+applies. Without resolution, stale entries pollute every downstream
+read. Format:
+
+  Active:    - YYYY-MM-DD · #shipped → affects #N: one-line note
+  General:   - YYYY-MM-DD · general: one-line note (no specific target)
+  Operator:  - YYYY-MM-DD · operator: free-form note for downstream skills
+  Resolved:  - ~~YYYY-MM-DD · #shipped → affects #N: original note~~
+              → resolved YYYY-MM-DD: how it was addressed -->
+
+### Active
 
 (empty — entries will be appended during the sprint)
+
+### Resolved
+
+(empty — entries move here when their impact is addressed)
 
 ---
 Status snapshot: see `gh issue list --label sprint` for live state.
