@@ -264,10 +264,10 @@ ROLLED FORWARD (back in `scoped` pool, fresh classification):
   - #N5 — [title] — was ready, never walked
   - ...
 
-NEXT:
-  - Resolve any NEEDS-MIKE items out-of-band: #N8
-  - /sprint-retro when you have a few minutes for the qualitative layer (auto-derived already saved)
-  - /sprint-start when ready — pool is fresh, no wait
+**Your next step**
+- Resolve any NEEDS-{{OPERATOR}} items out-of-band: #N8
+- `/sprint-retro` when you have a few minutes for the qualitative layer (auto-derived already saved)
+- `/sprint-start` when ready — pool is fresh, no wait
 ```
 
 ## Standing rules

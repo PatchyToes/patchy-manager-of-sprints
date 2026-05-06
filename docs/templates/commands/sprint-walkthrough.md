@@ -188,9 +188,9 @@ LABEL WRITES APPLIED ([count]):
 - #N: ready→abandoned
 ...
 
-NEXT:
-  /sprint-implement     ship the K greenlit plans (next: #N1, [Module])
-  /sprint               see updated sprint status
+**Your next step**
+- `/sprint-implement` — ship the K greenlit plans (next: #N1, [Module])
+- `/sprint` — see updated sprint status
 ```
 
 ## Phase 5: Follow-up actions (operator-authorized)

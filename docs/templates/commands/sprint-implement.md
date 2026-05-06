@@ -141,7 +141,16 @@ and stop rather than improvise.
 When the commit lands on main with `Closes #N` in the body, GitHub auto-closes the issue
 and the sprint progress bar will update. No additional sprint-side action required.
 
-Run /sprint-implement again for the next greenlit plan, or /sprint for status.
+---
+
+**What just happened**
+Rendered the dispatch brief above for issue #N. This window stays as the orchestration parent — implementation work happens in the new window you're about to open.
+
+**Where you are now**
+Brief is staged but the implementation session hasn't started yet. The `implementing` label is now on #N to prevent parallel `/sprint-implement` runs from re-claiming it.
+
+**Your next step**
+Open a fresh Claude Code window in this repo and paste the dispatch brief above (the block between the dashed lines). When that session lands its commit on main with `Closes #N` in the body, GitHub auto-closes the issue. Run `/sprint-implement` here again for the next greenlit plan, or `/sprint` for status.
 ```
 
 ## Phase 4: Claim the issue with `implementing` label

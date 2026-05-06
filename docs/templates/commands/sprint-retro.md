@@ -251,12 +251,13 @@ Don't create a separate file — keeping the retro inline with the manifest mean
 RETRO COMPLETE — {SPRINT_ID}
 ==========================================
 
-Stored: docs/sprints/{SPRINT_ID}.md (## Retro section)
+**What just happened**
+Stored: `docs/sprints/{SPRINT_ID}.md` (`## Retro` section).
 
-NEXT:
-  - Apply recommendations to your /sprint-start command (e.g., --size override)
-  - Run /sprint-doctor to verify clean state before next sprint
-  - /sprint-start when ready
+**Your next step**
+- Apply recommendations to your `/sprint-start` command (e.g., `--size` override)
+- Run `/sprint-doctor` to verify clean state before next sprint
+- `/sprint-start` when ready
 ```
 
 ## Standing rules

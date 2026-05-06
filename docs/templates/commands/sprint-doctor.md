@@ -331,11 +331,11 @@ REPAIRS APPLIED ([count])
 
 [Footer:]
 
-NEXT:
-  - Address BROKEN items first (pipeline is in inconsistent state)
-  - Then DEGRADED items (pipeline works but degraded)
-  - Then re-run `/sprint-doctor --quiet` to verify clean state
-  - Or proceed with normal workflow if all that's left is informational
+**Your next step**
+- Address BROKEN items first (pipeline is in inconsistent state)
+- Then DEGRADED items (pipeline works but degraded)
+- Then re-run `/sprint-doctor --quiet` to verify clean state
+- Or proceed with normal workflow if all that's left is informational
 ```
 
 ## Self-check note

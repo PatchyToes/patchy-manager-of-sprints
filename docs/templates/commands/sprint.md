@@ -92,16 +92,15 @@ SPRINT {SPRINT_ID} — N issues across M modules
   module-d          (4): ██████████  4 implemented — fully shipped
   cross-cutting     (2): ░░░░░░░░░░  not started
 
-You are here: mid-sprint. {summary phrase — e.g., "5 plans waiting for walkthrough, 1 greenlit ready to ship"}.
+**Where you are now**
+Mid-sprint. {summary phrase — e.g., "5 plans waiting for walkthrough, 1 greenlit ready to ship"}.
 
 [If NEEDS YOUR INPUT exists:]
-NEEDS YOUR INPUT:
+**Needs your input**
   - #350 (module-a) — needs-operator: [reviewer's escalation summary]
 
-NEXT:
-  /sprint-{verb}
-    {Plain-English description of what this single recommended action does.}
-    {ETA + posture — "walk away," "stay at the keyboard," "produces a brief to paste elsewhere."}
+**Your next step**
+`/sprint-{verb}` — {Plain-English description of what this single recommended action does.} {ETA + posture — "walk away," "stay at the keyboard," "produces a brief to paste elsewhere."}
 
 [Optional — only if there's genuinely valuable parallel work AND the operator is likely to have capacity:]
 Parallel option (separate windows):

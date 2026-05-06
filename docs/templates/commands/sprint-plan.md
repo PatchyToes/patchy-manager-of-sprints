@@ -145,12 +145,13 @@ Planned: K of N
 Skipped (concurrent): #N6, #N7
 Aborted: #N8 ([reason])
 
-Module status: K planned, J still scoped (run again to resume)
+**Where you are now**
+Module status: K planned, J still scoped (run again to resume).
 
-Next:
-  /sprint                    — see updated sprint status
-  /sprint-walkthrough        — walk through K READY plans
-  /sprint-plan <next-module> — plan another module
+**Your next step**
+- `/sprint` — see updated sprint status
+- `/sprint-walkthrough` — walk through K READY plans
+- `/sprint-plan <next-module>` — plan another module
 ```
 
 If everything in the module planned successfully (no remaining `scoped` in this module):

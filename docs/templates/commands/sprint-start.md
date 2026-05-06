@@ -327,15 +327,17 @@ These items are NOT surfaced in the final summary. `/sprint-retro` Phase 5 reads
 SPRINT {SPRINT_ID} — committed
 ==========================================
 
-Done: {N} issues locked in across {K} modules. Manifest at docs/sprints/{SPRINT_ID}.md.
-You are here: sprint set, nothing planned yet.
+**What just happened**
+{N} issues locked in across {K} modules. Manifest at `docs/sprints/{SPRINT_ID}.md`.
 
-Next: /sprint-plan {largest-module-slug}
-  Plans {M} {largest-module-slug} issues sequentially in this window. ~30-60 min — start it and walk away.
-  When done, those {M} are ready for /sprint-walkthrough.
+**Where you are now**
+Sprint set, nothing planned yet.
+
+**Your next step**
+`/sprint-plan {largest-module-slug}` — plans {M} {largest-module-slug} issues sequentially in this window. ~30-60 min; start it and walk away. When done, those {M} are ready for `/sprint-walkthrough`.
 ```
 
-**The three beats are non-negotiable.** Done = what just happened. You are here = where in the loop. Next = command + plain-English explanation of what it does + ETA + posture.
+**The three beats are non-negotiable, formatted as bold mini-titles each on their own line, content underneath.** *What just happened* recaps what the skill produced. *Where you are now* names the position in the sprint loop. *Your next step* is the explicit operator action — command + plain-English explanation + ETA + posture, so a user returning from a break can pick up cold.
 
 **Banned in this output:** any tail commentary about sidebar items, rot, singletons, "worth considering," "available to bolt on," "may also want to," etc. The cleanup queue (7D) captures all of that silently.
 
