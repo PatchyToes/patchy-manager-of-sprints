@@ -97,9 +97,17 @@ The IK files are the system's memory. They start sparse and get more useful over
 
 If your repo already uses any of these names with different semantics, the setup will warn you. Rename your existing label first.
 
+## A note on token cost
+
+The three-round planner runs three separate critic dispatches per issue, each typically on Opus. A single non-trivial plan can use a few hundred thousand tokens. That's not cheap.
+
+It's also not a tax — it's an investment. The protocol exists to ship less broken code: every round of adversarial critique catches gaps before they become commits, debug sessions, or rollbacks. Pay tokens up front so you don't pay the much higher cost of fixing a half-baked plan after it's shipped. In practice the ratio works out — three rounds of critique are cheaper than one round of "why did this break in prod."
+
+That said, not every issue earns three rounds. The scope gate is supposed to route trivial work (config tweaks, single-file bug fixes) to the lighter `PLAN-1-ROUND` protocol automatically. If you find too many small issues getting routed to three-round, the section below covers how to bias the gate.
+
 ## Tuning planner cost (forcing 1-round)
 
-The three-round planner runs three separate critic dispatches per issue — high-quality output but token-heavy. The one-round planner runs a single combined critic pass — much cheaper, slightly less rigorous. If you'd prefer 1-round as your default, two ways:
+The one-round planner runs a single combined critic pass — much cheaper, slightly less rigorous. If you'd prefer 1-round as your default, two ways:
 
 **Per-issue override.** Invoke the planner directly, ignoring the scope gate's recommendation:
 
