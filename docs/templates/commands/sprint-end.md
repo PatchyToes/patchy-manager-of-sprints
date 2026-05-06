@@ -113,6 +113,89 @@ If `ACTIVE_COUNT > 0`, list each active entry verbatim under the Outcomes line s
 
 If `--dry-run`, print the planned manifest update inline. Skip the file write.
 
+## Phase 4.5: Scratchpad reconciliation (skip if --dry-run)
+
+Default principle: assume the operator has no time for cleanup. Auto-route every entry whose destination can be inferred. Only prompt if a heavy residue remains.
+
+### Step 1: Parse and classify each ### Active entry
+
+Read all entries in `docs/sprints/${SPRINT_ID}.md` under `## Sprint scratchpad / ### Active`. For each entry, parse:
+- `from_issue`: the `#N` before "→ affects" (if present)
+- `affected_issue`: the `#M` after "→ affects" (if present)
+- `tag`: presence of `general:` or `operator:`
+
+Classify:
+- **MOOT** — has `affected_issue` AND `gh issue view <affected_issue> --json state` returns `closed`. The impact is no longer relevant.
+- **CARRYABLE** — has `affected_issue` AND it's still open. Impact persists; needs to follow the issue.
+- **REVIEW** — `general:` / `operator:` tag, OR parsing failed, OR has `from_issue` but no `affected_issue`. No automatic destination.
+
+### Step 2: Auto-route MOOT and CARRYABLE
+
+**For each MOOT entry:**
+
+Move from `### Active` to `### Resolved` with annotation:
+```
+- ~~<original entry verbatim>~~ → resolved <today>: moot — affected #M closed
+```
+
+**For each CARRYABLE entry:**
+
+First, idempotency check — read existing comments on the affected issue to verify no prior carry-forward comment quoting this entry already exists:
+```bash
+gh issue view <affected_issue> --comments --json comments | \
+  grep -c "SCRATCHPAD-CARRYFORWARD" # if matches contain this entry's text, skip
+```
+
+If no existing carry-forward for this entry, post the comment:
+```bash
+gh issue comment <affected_issue> --body "<!-- SCRATCHPAD-CARRYFORWARD -->
+**Carry-forward from sprint ${SPRINT_ID}** (auto-noted at sprint close $(date -I))
+
+> <verbatim entry text>
+
+When this issue is next planned or implemented, incorporate this context. Original entry archived in \`docs/sprints/${SPRINT_ID}.md\` ## Sprint scratchpad ### Resolved."
+```
+
+Then move the entry from `### Active` to `### Resolved`:
+```
+- ~~<original entry verbatim>~~ → resolved <today>: carried via comment on #M
+```
+
+The carry-forward comment is the propagation channel — the next time `/enrich-issue` or a planner reads `#M`, the context is right in the issue thread.
+
+### Step 3: Confirmation gate on REVIEW residue
+
+Count the REVIEW-classified entries.
+
+- **0 REVIEW** — silent. Auto-routing handled everything. Continue to Phase 5.
+- **1–2 REVIEW** — list them in the close-out output as "needs manual review" but do not prompt. Entries stay in `### Active`. Continue to Phase 5.
+- **3+ REVIEW** — prompt the operator with one line:
+
+  ```
+  ⚠ <count> scratchpad entries need a human read — couldn't be auto-routed.
+  Triage now (~5 min walk-through) or leave them in active for next sprint to surface?
+
+  Reply: `now` | `defer` (default: defer if no response)
+  ```
+
+  - **`defer`** (or no response): leave REVIEW entries in `### Active`. They surface in next `/sprint-start`'s proposal where the operator can decide whether to copy any forward.
+  - **`now`**: walk each REVIEW entry one at a time. For each, ask the operator:
+    ```
+    Entry: <verbatim>
+    [r]esolve / [c]arry to issue #_ / [d]iscard / [s]kip (leave in active)
+    ```
+    - `r` → move to ### Resolved with operator-supplied note
+    - `c #N` → treat as CARRYABLE: post comment on #N, move entry to ### Resolved
+    - `d` → move to ### Resolved with `discarded — no longer relevant`
+    - `s` → leave in ### Active
+
+### Step 4: Recompute the lifecycle counts
+
+After Steps 1–3, update the `## Outcomes` section's `Scratchpad lifecycle:` line in the manifest to reflect the post-reconciliation totals:
+```
+Scratchpad lifecycle: R resolved (originally K, +N moot, +M carried), A unresolved active.
+```
+
 ## Phase 5: Label cleanup (skip if --dry-run)
 
 For each `sprint`-labeled issue:
@@ -164,13 +247,17 @@ Sprint labels stripped from N issues.
 Greenlit labels stripped from K issues.
 Scoped pool refreshed: K issues re-classified, M new issues scoped.
 
-[If ACTIVE_COUNT > 0:]
-⚠ Scratchpad: A unresolved active entries — these signal cross-issue impact that was never closed:
+Scratchpad reconciliation:
+  - {N} moot entries auto-resolved (affected issue already closed)
+  - {M} entries auto-carried via comment on #X1, #X2, ... (next planning stage will see them)
+  - {K} entries left in active for review
+
+[If K > 0:]
+⚠ Active scratchpad entries needing manual review:
   - [verbatim entry 1]
   - [verbatim entry 2]
   - ...
-  Review these before /sprint-start. If any are about rolled-forward issues, copy them
-  into the new sprint's manifest scratchpad so the next implementer sees them.
+  These surface in next /sprint-start's proposal. No action needed now.
 
 ROLLED FORWARD (back in `scoped` pool, fresh classification):
   - #N4 — [title] — was greenlit, never shipped
