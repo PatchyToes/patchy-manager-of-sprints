@@ -98,7 +98,18 @@ Read `docs/sprints/{SPRINT_ID}.md`. Append (or replace if already present) a `##
 | Never-planned | K | #N10, #N11 |
 
 **Roll forward (these go back to `scoped` pool):** #N4, #N5, #N6, #N7, #N10, #N11
+
+**Scratchpad lifecycle:** R resolved, A unresolved active entries. [If A > 0, list them here as a bulleted reminder of work that wasn't closed cleanly.]
 ```
+
+Compute the scratchpad counts before writing:
+
+```bash
+ACTIVE_COUNT=$(awk '/^### Active/{flag=1; next} /^### Resolved/ || /^---$/ && flag {flag=0} flag' "docs/sprints/${SPRINT_ID}.md" | grep -E "^- " | wc -l)
+RESOLVED_COUNT=$(awk '/^### Resolved/{flag=1; next} /^---$/ && flag {flag=0} flag' "docs/sprints/${SPRINT_ID}.md" | grep -E "^- " | wc -l)
+```
+
+If `ACTIVE_COUNT > 0`, list each active entry verbatim under the Outcomes line so the operator can see what slipped through. These are entries that were written during the sprint but never moved to ### Resolved — typically because the implementer who wrote them moved on without closing the loop, OR because the impact genuinely persists into next sprint.
 
 If `--dry-run`, print the planned manifest update inline. Skip the file write.
 
@@ -152,6 +163,14 @@ Manifest updated: docs/sprints/{SPRINT_ID}.md
 Sprint labels stripped from N issues.
 Greenlit labels stripped from K issues.
 Scoped pool refreshed: K issues re-classified, M new issues scoped.
+
+[If ACTIVE_COUNT > 0:]
+⚠ Scratchpad: A unresolved active entries — these signal cross-issue impact that was never closed:
+  - [verbatim entry 1]
+  - [verbatim entry 2]
+  - ...
+  Review these before /sprint-start. If any are about rolled-forward issues, copy them
+  into the new sprint's manifest scratchpad so the next implementer sees them.
 
 ROLLED FORWARD (back in `scoped` pool, fresh classification):
   - #N4 — [title] — was greenlit, never shipped
