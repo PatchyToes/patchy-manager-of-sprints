@@ -13,9 +13,12 @@ open issue
    │
    ▼  /scope-issue (single)  or  /batch-scope (bulk)
    │     Triage gate — emits PLAN-3-ROUND / PLAN-1-ROUND / DEFER / ABORT / NEEDS-OPERATOR
-   │     Writes labels: scoped | deferred | scope:abort
+   │     Writes labels: scoped | deferred | scope:abort | needs-operator
    ▼
-scoped issues
+scoped issues  ──┐
+   │             │  needs-operator → /sprint-walkthrough (decide whether to plan, defer, or abort)
+   │             │     Operator decision posts <!-- WALKTHROUGH-DECISION --> with verdict
+   │             └──> back to plannable on PLAN-3-ROUND / PLAN-1-ROUND
    │
    ▼  /plan-issue-three-round  or  /plan-issue-one-round
    │     Drafts a plan, dispatches a fresh subagent as critic, integrates feedback
@@ -25,15 +28,17 @@ scoped issues
 planned issues
    │
    ▼  /review-plans
-   │     Reviewer pass — READY / NEEDS-OPERATOR / ABANDON
+   │     Reviewer pass — READY / NEEDS-MIKE / ABANDON
    │     Adversarial filter on over-cautious escalations
-   │     Writes labels: ready | needs-operator | abandoned
+   │     Writes labels: ready | needs-mike (or needs-operator) | abandoned
    ▼
-ready issues
+ready issues  ──┐
+   │            │  needs-mike → /sprint-walkthrough (answer reviewer's question, then ship)
+   │            └──> ready+greenlit on operator answer + ship-it
    │
    ▼  /sprint-walkthrough  (or /walkthrough-plans for read-only)
-   │     Operator-facing 4-beat walkthrough
-   │     Decides greenlit / abandoned
+   │     Operator-facing 4-beat walkthrough — handles ready plans AND escalations
+   │     in one queue. Decisions: greenlit / abandoned / deferred / cleared-for-planning
    ▼
 greenlit issues
    │
@@ -41,7 +46,7 @@ greenlit issues
          Bootstraps a fresh implementation session with the handoff brief
 ```
 
-Sprint orchestration layered on top: `/sprint-start` (pick the cohort), `/sprint-plan` (auto-dispatch planners across the sprint), `/sprint-walkthrough` (decide each ready plan), `/sprint-implement`, `/sprint-end`, `/sprint-retro`, `/sprint-doctor` (health check), `/sprint` (status oracle).
+Sprint orchestration layered on top: `/sprint-start` (pick the cohort), `/sprint-plan` (auto-dispatch planners across the sprint), `/sprint-walkthrough` (decide every open sprint item — ready plans, reviewer escalations, and scope-gate stucks — in one pass), `/sprint-implement`, `/sprint-end`, `/sprint-retro`, `/sprint-doctor` (health check), `/sprint` (status oracle).
 
 ## Install
 
