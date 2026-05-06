@@ -61,7 +61,7 @@ For each `sprint`-labeled issue, classify by current state:
 - **GREENLIT-NOT-SHIPPED** — open + has `greenlit` (walkthrough cleared, never implemented this sprint)
 - **READY-NOT-WALKED** — open + has `ready` + no `greenlit` (reviewer cleared, walkthrough never reached it)
 - **PLANNED-NOT-REVIEWED** — open + has `planned` + no `ready`/`needs-operator`/`abandoned` (planner ran, reviewer didn't finish)
-- **NEEDS-MIKE** — open + has `needs-operator` (reviewer escalated, never resolved)
+- **NEEDS-OPERATOR** — open + has `needs-operator` (reviewer or scope-gate escalated, never resolved)
 - **ABANDONED** — open + has `abandoned` (walkthrough rejected)
 - **NEVER-PLANNED** — open + has `scoped` only (sprint set but planning never happened)
 

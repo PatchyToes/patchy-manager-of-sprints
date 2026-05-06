@@ -61,7 +61,7 @@ gh issue list --state open --label sprint --label scoped --limit 100 --json numb
 For each result:
 1. Fetch the most recent `<!-- SCOPE-GATE -->` comment to read `Module:` and verdict (`PLAN-3-ROUND` vs `PLAN-1-ROUND`)
 2. Fetch the most recent `<!-- WALKTHROUGH-DECISION -->` comment, if any. **If it exists AND is newer than the SCOPE-GATE comment AND has a `Verdict:` field, use that verdict instead.** This is the contract handoff from `/sprint-walkthrough` for items the operator cleared from a NEEDS-OPERATOR state.
-3. Skip if labeled `planned`, `ready`, `needs-mike`, or `abandoned` (already past planning). **Do NOT skip on `needs-operator` alone** — if a WALKTHROUGH-DECISION comment cleared the verdict, the issue is plannable even if the label hasn't been stripped yet (label drift). The walkthrough strips `needs-operator` itself; this is defensive.
+3. Skip if labeled `planned`, `ready`, `needs-operator`, or `abandoned` (already past planning). **Do NOT skip on `needs-operator` alone** — if a WALKTHROUGH-DECISION comment cleared the verdict, the issue is plannable even if the label hasn't been stripped yet (label drift). The walkthrough strips `needs-operator` itself; this is defensive.
 4. Filter to issues whose module matches the target
 
 Order the resulting list by:
@@ -151,19 +151,19 @@ Module status: K planned, J still scoped (run again to resume).
 
 **Your next step**
 - `/sprint` — see updated sprint status
-- `/sprint-walkthrough` — walk through K READY plans, plus any items with `needs-mike`/`needs-operator` labels
+- `/sprint-walkthrough` — walk through K READY plans, plus any items with `needs-operator`/`needs-operator` labels
 - `/sprint-plan <next-module>` — plan another module
 ```
 
 If everything in the module planned successfully (no remaining plannable issues in this module):
-- Count any `needs-mike` / `needs-operator` items in this module:
+- Count any `needs-operator` / `needs-operator` items in this module:
   ```bash
   gh issue list --state open --label sprint --label needs-operator --json number | jq length
-  gh issue list --state open --label sprint --label needs-mike --json number | jq length
+  gh issue list --state open --label sprint --label needs-operator --json number | jq length
   ```
 - If count > 0:
   ```
-  Module fully planned for issues that could be planned. K item(s) parked at needs-mike/needs-operator
+  Module fully planned for issues that could be planned. K item(s) parked at needs-operator/needs-operator
   need your decision — run /sprint-walkthrough to triage. /sprint-plan with no arg will pick the next module.
   ```
 - If count = 0:

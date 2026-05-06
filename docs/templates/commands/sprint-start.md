@@ -86,7 +86,7 @@ Critical: filter must exclude EVERY pipeline state label, not just `scoped`/`def
 ```bash
 gh issue list --state open --search \
   "-label:scoped -label:deferred -label:scope:abort -label:tracking \
-   -label:planned -label:ready -label:needs-operator -label:needs-mike \
+   -label:planned -label:ready -label:needs-operator \
    -label:abandoned -label:greenlit -label:sprint" \
   --limit 50 --json number | jq 'length'
 ```

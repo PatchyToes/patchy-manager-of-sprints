@@ -72,7 +72,7 @@ For the chosen issue:
    - Plan v4 / v2 (final) — the actual implementation steps
    - Cross-system effects
    - ISSUE MANAGEMENT section (out-of-scope items to file, master plan registration, close-out checklist)
-4. Note the deploy footprint — does it touch `supabase/functions/`, `supabase/migrations/`, `src/`, etc.
+4. Note the deploy footprint — does it touch frontend code, backend services, database schema/migrations, scheduled jobs, etc. (per the deploy process documented in this repo's CLAUDE.md).
 
 ## Phase 3: Print the handoff brief
 
@@ -109,7 +109,7 @@ Read these in order:
 3. The issue: gh issue view N --comments
 
 Then implement the plan. When you ship:
-- Use the full deploy pipeline per CLAUDE.md (commit + push to main + functions deploy + db push as needed)
+- Use the full deploy pipeline per this repo's CLAUDE.md (the deploy steps that take a commit from `main` to live)
 - DO NOT create a PR — push directly to main, that's the codebase convention
 - The commit message body MUST contain `Closes #N` on its own line. Example:
     fix(scope): one-line subject

@@ -41,7 +41,7 @@ If multiple plan files exist (e.g., one-round and three-round), use the most rec
 
 ## Phase 1.5: Module grouping
 
-Read `docs/modules.md` if it exists. Parse module entries — each module has a name (H2 heading) and one or more "Primary code" path entries. Build a `path → module` index from longest-prefix to shortest (so `supabase/functions/ai-chat/` resolves to its specific module before `supabase/functions/` resolves to a more general one).
+Read `docs/modules.md` if it exists. Parse module entries — each module has a name (H2 heading) and one or more "Primary code" path entries. Build a `path → module` index from longest-prefix to shortest (so `api/checkout/stripe/` resolves to its specific module before `api/checkout/` resolves to a more general one).
 
 For each plan:
 1. Parse the plan file body for cited file paths (anything matching the `{{PATH_PREFIXES}}/` regex used elsewhere in this pipeline).

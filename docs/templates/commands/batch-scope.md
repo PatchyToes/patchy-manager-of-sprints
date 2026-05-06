@@ -65,7 +65,7 @@ Skip immediately and add to skip count if any of these match:
 3. labels contain `scope:abort` — terminal verdict; re-scope only via `/scope-issue N --force`
 4. labels contain `ready` — past scope gate, in reviewer state or cleared
 5. labels contain `planned` — past scope gate, planner has run
-6. labels contain `needs-mike` — reviewer verdict, awaiting operator judgment
+6. labels contain `needs-operator` — reviewer or scope-gate verdict, awaiting operator judgment
 7. labels contain `abandoned` — terminal reviewer verdict
 
 ### TTL-skip (applies only to issues with `scoped` or `deferred` label)
@@ -163,13 +163,13 @@ Default to PLAN-3-ROUND when ambiguous.
 Read `docs/modules.md` once at start of run. For each `## <Module Name>` section, capture three things:
 1. **Primary code paths** — from the `Primary code:` line (markdown links). Index longest-prefix first.
 2. **What-it-does line** — the prose description after `**What it does:**` — used as a keyword bag.
-3. **Path leaf names** — for each primary code path, extract the leaf (e.g. `redeem-promo-code` from `supabase/functions/redeem-promo-code/`). Used to catch issues that mention the function/component by name without the full path.
+3. **Path leaf names** — for each primary code path, extract the leaf (e.g. `payment-processor` from `api/jobs/payment-processor/`). Used to catch issues that mention the function/component by name without the full path.
 
 Per issue, run the assignment in tiers and stop at the first tier that produces a hit:
 
 **Tier 1 — Path match (strongest):** parse cited paths from the body using the same PATH_RE from Phase D.2. Look each up in the path index, tally hits, primary module = most hits (ties alphabetical).
 
-**Tier 2 — Leaf-name match:** if Tier 1 found nothing, lowercase the issue title+body. For each module, check whether any of its path leaves appears as a substring (word-boundary, e.g. `redeem-promo-code` matches but `re-deem` does not). Tally hits across modules, pick winner.
+**Tier 2 — Leaf-name match:** if Tier 1 found nothing, lowercase the issue title+body. For each module, check whether any of its path leaves appears as a substring (word-boundary, e.g. `payment-processor` matches but `pay-ment` does not). Tally hits across modules, pick winner.
 
 **Tier 3 — Module-name + description match:** if Tier 2 also found nothing, for each module check whether the module name (e.g. `Module A`) OR any 2+ word phrase from its What-it-does line appears as a substring in the lowercased title+body. Tally hits, pick winner.
 
@@ -297,7 +297,7 @@ Defer until:
 
 **ABORT:**
 ```bash
-gh issue edit <N> --remove-label "scoped,deferred,scope:abort,planned,ready,needs-mike,abandoned" 2>/dev/null || true
+gh issue edit <N> --remove-label "scoped,deferred,scope:abort,planned,ready,needs-operator,abandoned" 2>/dev/null || true
 gh issue edit <N> --add-label "scope:abort"
 gh issue comment <N> --body "<!-- SCOPE-GATE -->
 **Scope gate: ABORT** *(batch run)*
@@ -329,5 +329,5 @@ If a file for today already exists (re-run on same day), append a new line rathe
 - **Fail open on individual issues.** If a single issue's gh call fails (network error, rate limit), log the error in the output table and continue. Do not abort the entire run.
 - **No question collection.** NEEDS-MANUAL-SCOPE issues are flagged for human re-run only. Do not collect questions, accumulate a question pile, or wait for answers.
 - **TTL is TTL.** A 2.9-day-old scoped issue gets skipped. No rounding.
-- **--force bypasses TTL, not always-skip.** `scope:abort`, `planned`, `ready`, `needs-mike`, `abandoned` are always-skipped regardless of --force. Only `scoped` and `deferred` TTL checks are bypassed by --force.
+- **--force bypasses TTL, not always-skip.** `scope:abort`, `planned`, `ready`, `needs-operator`, `abandoned` are always-skipped regardless of --force. Only `scoped` and `deferred` TTL checks are bypassed by --force.
 - **D.2 findings are SCOPE NOTES, not blockers.** Velocity on a cited path routes to PLAN-* with a note, never to NEEDS-MANUAL-SCOPE.

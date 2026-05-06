@@ -129,7 +129,7 @@ I've read the codebase. Here's what I know so far:
 
 Five things I can't determine from the code:
 
-1. **Deploy process:** How do changes go live? (e.g. "git push auto-deploys via Vercel" or "I run `supabase functions deploy` manually")
+1. **Deploy process:** How do changes go live? (e.g. "git push auto-deploys via Vercel/Netlify", "CI runs tests then deploys", or "I run `npm run deploy` manually")
 
 2. **Highest-stakes surfaces:** Which files or systems, if broken, would hurt real users most? Examples: payment processing, authentication, a specific database table, an external API integration.
 
