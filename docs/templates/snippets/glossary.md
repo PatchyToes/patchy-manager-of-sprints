@@ -1,0 +1,5 @@
+**Glossary:**
+- **IK files** = Institutional Knowledge files in `docs/`: `modules.md` (module map), `stakes-index.md` (high-stakes surfaces + verification steps), `lessons-by-surface.md` (incident lessons keyed to files), `operating-principles.md` (workflow constraints).
+- **GIC block** = Generated Issue Context, the `<!-- GIC-START -->...<!-- GIC-END -->` block `/enrich-issue` writes onto a GitHub issue body containing module assignment, stakes notes, and a staleness probe.
+- **Scope-gate verdict** = the routing decision `/scope-issue` emits as a `SCOPE-GATE` comment: `PLAN-3-ROUND` (full protocol), `PLAN-1-ROUND` (collapsed protocol), `DEFER` (out of scope this cycle), `ABORT` (won't fix), or `NEEDS-OPERATOR` (escalate, gate cannot decide).
+- **Pipeline labels** = the GitHub label state machine: `scoped` → `planned` → `ready` → `greenlit` → `implementing`. Side states: `deferred`, `scope:abort`, `abandoned`, `needs-operator`, `tracking`, `sprint`.

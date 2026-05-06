@@ -1,0 +1,33 @@
+# OS / editors
+.DS_Store
+Thumbs.db
+*.swp
+.vscode/
+.idea/
+
+# Node (in case anyone uses npm in the future)
+node_modules/
+*.log
+npm-debug.log*
+
+# Generated state from /setup-pipeline (per-fork; not shipped from canonical repo)
+.claude/pipeline-setup.md
+
+# Per-fork artifacts that shouldn't ship from the canonical repo.
+# Forks of this repo running setup-pipeline locally will create:
+#   .claude/commands/    (live skills, generated from templates)
+#   docs/sprints/        (sprint manifests)
+#   docs/protocol-test-runs/ (plan artifacts)
+#   docs/debriefs/       (post-implementation writeups)
+#   docs/plans/          (master plans)
+#   tmp/                 (run logs)
+#
+# These directories are excluded from the canonical distribution but kept by
+# each fork via that fork's local config. If you fork this repo and want to
+# track those locally, remove the relevant entries below in your fork.
+.claude/commands/
+docs/sprints/
+docs/protocol-test-runs/
+docs/debriefs/
+docs/plans/
+tmp/
