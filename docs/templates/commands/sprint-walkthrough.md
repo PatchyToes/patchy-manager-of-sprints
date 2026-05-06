@@ -36,6 +36,8 @@ Verify the `greenlit` label exists; create idempotently if missing:
 gh label create "greenlit" --color "0e8a16" --description "Walkthrough cleared — ready to implement" 2>/dev/null || true
 ```
 
+{{INCLUDE:scratchpad-read}}
+
 ## Phase 1: Plan enumeration
 
 Fetch open `sprint ∩ ready` issues:

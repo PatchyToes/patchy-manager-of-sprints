@@ -261,6 +261,24 @@ Create `docs/sprints/{SPRINT_ID}.md`:
 - Sprint target size: 25 (committed: 26)
 
 ---
+
+## Sprint scratchpad
+
+<!-- This section is the sprint's running state. Any sprint-* skill (plan,
+walkthrough, implement) reads this before starting work and surfaces entries
+relevant to its target issue. Append a line whenever you ship something or
+make a decision that affects sibling sprint issues. Format:
+
+  - YYYY-MM-DD · #shipped → affects #N: one-line note
+  - YYYY-MM-DD · general: one-line note (no specific target issue)
+  - YYYY-MM-DD · operator: free-form note for downstream skills
+
+Entries persist for the sprint's lifetime. /sprint-end carries unresolved
+items into the retro. -->
+
+(empty — entries will be appended during the sprint)
+
+---
 Status snapshot: see `gh issue list --label sprint` for live state.
 Run `/sprint` for a rendered status view.
 ```

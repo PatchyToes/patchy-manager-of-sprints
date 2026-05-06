@@ -32,6 +32,8 @@ Verify `Task`/`Agent` tool availability — required by the underlying planner. 
 - Inspect available-tools list for `Task` or `Agent`
 - If absent: abort with `Sprint plan abort: planner requires Task/Agent dispatch tool unavailable in this session.`
 
+{{INCLUDE:scratchpad-read}}
+
 ## Phase 1: Resolve target module
 
 If `$1` was passed, treat it as the target module slug (kebab-case, e.g. `module-a`, `multi-word-module`).
