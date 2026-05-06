@@ -112,9 +112,12 @@ Parallel option (separate windows):
 Pick ONE primary action based on sprint state, in this order:
 
 1. **`/sprint-implement`** — if any sprint issue is `ready ∩ greenlit ∩ NOT implementing`. Shipping greenlit plans is highest-leverage.
-2. **`/sprint-walkthrough`** — if any sprint issue is `ready ∩ NOT greenlit ∩ NOT abandoned`. Cleared plans need an operator decision before they can ship.
-3. **`/sprint-plan`** (no arg) — if any module has `scoped` issues that aren't `planned`. The skill auto-picks the next module.
-4. **`/sprint-end`** — if every sprint issue is in a terminal state (closed, abandoned, or fully implemented).
+2. **`/sprint-walkthrough`** — if **any** of:
+   - A sprint issue is `ready ∩ NOT greenlit ∩ NOT abandoned` (cleared plans needing decision), OR
+   - A sprint issue carries `needs-mike` or `needs-operator` (escalations needing operator input — walkthrough now handles these too as of v2).
+   Both shapes are unblocked by the same verb.
+3. **`/sprint-plan`** (no arg) — if any module has `scoped` issues that aren't `planned`/`needs-mike`/`needs-operator`. The skill auto-picks the next module.
+4. **`/sprint-end`** — if every sprint issue is in a terminal state (closed, abandoned, deferred, or fully implemented).
 5. **Wait state** — if all sprint issues are `planned` but reviewer is still running, render: "Reviewer is still working on K plans. Re-run /sprint in a few minutes."
 
 **Module slugs are NOT recommended as the primary CTA.** They're a parallelism escape hatch only — surfaced under "Parallel option" and only when there's a coherent reason to fan out (e.g., multiple modules with unplanned issues AND the operator hasn't already started one). Default mental model: one verb per action, system picks the rest.

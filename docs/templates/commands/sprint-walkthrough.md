@@ -1,9 +1,9 @@
 ---
-description: Walk through ready plans in the current sprint one at a time. Same 4-beat format as /walkthrough-plans, plus writes the `greenlit` / `abandoned` labels per operator decision. Closes the loop between Reviewer and Implementer. (Requires: `ready` plans in the current sprint — run /sprint-plan and let the reviewer finish first.)
+description: Walk through every open sprint item that needs an operator decision — ready plans, reviewer-escalated plans (needs-mike), and pre-plan scope-gate stucks (needs-operator). Same 4-beat format as /walkthrough-plans, plus writes greenlit / abandoned / WALKTHROUGH-DECISION per operator decision. Closes the loop between Planner/Reviewer and Implementer. (Requires: open sprint items needing decision.)
 argument-hint: [<module-slug>]
 ---
 
-# Sprint Walkthrough (v1)
+# Sprint Walkthrough (v2)
 
 {{INCLUDE:glossary}}
 
@@ -13,7 +13,15 @@ argument-hint: [<module-slug>]
 
 **The new thing this skill adds:** writes labels to GitHub after each operator decision so `/sprint-implement` knows what's been greenlit. `/walkthrough-plans` is read-only by design — `/sprint-walkthrough` is the version with teeth.
 
-Optional `$1`: module slug to filter further (e.g. `module-a`). Default: walk every `sprint ∩ ready` plan across all modules.
+**v2 expansion (2026-05-06):** the walkthrough no longer skips items that need operator input — it walks them. There are three item shapes:
+
+- **Ready plan** — reviewer cleared, no open question. 4-beat format, decide ship/abandon.
+- **Reviewer-escalated plan** (`needs-mike`/`needs-operator` after planning) — plan exists with one open question the reviewer flagged. 4-beat format with a "**The reviewer's question**" callout above. Operator answers, then ships or abandons.
+- **Scope-gate stuck** (`scoped + needs-operator`, no plan exists) — gate emitted NEEDS-OPERATOR. Walk in 4-beat where "the problem" is the gate's flagged question. Operator decides whether to plan, defer, or abort. Rare in practice; most "needs-operator" items in sprint are actually post-plan reviewer escalations.
+
+Operator's decision is captured in a `<!-- WALKTHROUGH-DECISION -->` comment on the issue (verbatim response + verdict). `/sprint-plan` reads this comment to override stale SCOPE-GATE verdicts on rerun.
+
+Optional `$1`: module slug to filter further (e.g. `module-a`). Default: walk every open sprint item across all modules that needs a decision.
 
 ## Phase A: Announce
 
@@ -38,112 +46,199 @@ gh label create "greenlit" --color "0e8a16" --description "Walkthrough cleared �
 
 {{INCLUDE:scratchpad-read}}
 
-## Phase 1: Plan enumeration
+## Phase 1: Item enumeration
 
-Fetch open `sprint ∩ ready` issues:
+Fetch all open `sprint` issues — single query, filter in-skill (label drift means a strict label-AND query misses items that should be walked):
+
 ```bash
-gh issue list --state open --label sprint --label ready --limit 100 --json number,title,body,labels
+gh issue list --state open --label sprint --limit 100 --json number,title,body,labels
 ```
 
-If `$1` was passed, filter to issues whose primary module (from their SCOPE-GATE comment) matches the slug.
+For each issue, classify into one of these states:
 
-If empty:
-- If a sprint exists but no `ready` issues yet → print `Sprint walkthrough: no ready plans yet. Run /sprint-plan to plan more, or wait for the reviewer to finish.`
+- **Walk it** — the issue needs an operator decision this session.
+- **Skip — already-walked** — has `greenlit` or `abandoned` label.
+- **Skip — in flight** — has `implementing` label (a session is shipping it).
+- **Skip — not actionable** — no plan file AND no SCOPE-GATE comment AND no reviewer-escalation comment. Means the issue is in some early state where there's nothing to walk yet.
+
+An issue is "walk it" if **any** of:
+- Has `ready` label (cleared by reviewer)
+- Has `needs-mike` or `needs-operator` label (escalated)
+- Has a plan file at `docs/protocol-test-runs/issue-${N}-*.md` AND lacks `greenlit`/`abandoned` (label drift recovery — the plan exists but labels haven't caught up)
+
+For each "walk it" issue, gather context:
+- Plan file (most recent by mtime if multiple matches)
+- Most recent reviewer comment (look for `**Review complete.**` marker)
+- Most recent `<!-- SCOPE-GATE -->` comment
+
+Determine item shape:
+- **READY-PLAN** — has plan file, no `needs-mike`/`needs-operator`, has `ready`
+- **NEEDS-MIKE-PLAN** — has plan file AND has reviewer "NEEDS Mike" comment OR has `needs-mike`/`needs-operator` label
+- **SCOPE-GATE-STUCK** — no plan file, has SCOPE-GATE comment with NEEDS-OPERATOR verdict (or with PLAN-* verdict but `needs-operator` label is set defensively)
+
+If `$1` was passed, filter further to issues whose primary module matches the slug.
+
+If no walk-it items remain after filtering:
+- If a sprint exists → print:
+  ```
+  Sprint walkthrough: nothing left to decide. Either every sprint item is greenlit/abandoned/implementing, or there are no items needing operator input.
+  Run /sprint-implement to ship greenlit, or /sprint for status.
+  ```
 - If no sprint exists → print `Sprint walkthrough: no sprint in flight. Run /sprint-start first.`
-
-Exclude any issue already carrying `greenlit` (already walked this sprint) — the operator can re-walk those by stripping `greenlit` first.
-
-For each remaining issue, locate its plan file:
-```bash
-find docs/protocol-test-runs -name "issue-${N}-*.md" 2>/dev/null
-```
-Use the most recent by mtime if multiple. If no plan file → mark `skipped: no plan artifact found`.
 
 ## Phase 1.5: Module grouping (mirrors /walkthrough-plans Phase 1.5)
 
-Group plans by primary module (parsed from each issue's most recent SCOPE-GATE comment, falling back to path-tally against `docs/modules.md` if needed). Order modules by priority of plans inside (HIGH-risk modules first); `Cross-cutting` last. Within a module, sort by issue number ascending.
+Group items by primary module (parsed from each issue's most recent SCOPE-GATE comment, falling back to path-tally against `docs/modules.md` if needed). Order modules by priority of items inside (HIGH-risk modules first); `Cross-cutting` last. Within a module, sort by issue number ascending. Item shape (READY-PLAN vs NEEDS-MIKE-PLAN vs SCOPE-GATE-STUCK) does not affect ordering — they interleave by issue number.
 
-Print: `Sprint walkthrough: N plans across M modules. Starting with Plan 1 of N — [module name].` Then proceed directly to Phase 2.
+Print: `Sprint walkthrough: N items across M modules. Starting with Item 1 of N — [module name].` Then proceed directly to Phase 2.
 
-## Phase 2: Per-plan loop
+## Phase 2: Per-item loop
 
-For each plan in order:
+For each item in order:
 
-1. Read the plan file in full
-2. Read the issue body and the most recent reviewer comment (look for `**Review complete.**` marker)
-3. If the plan references a master plan in `docs/plans/`, skim the relevant section
-4. Produce the walkthrough output using the **Phase 3 format below — verbatim, do not abbreviate**
-5. **Pause.** Wait for the operator response before continuing.
+1. Read the plan file in full (READY-PLAN, NEEDS-MIKE-PLAN) — skip if SCOPE-GATE-STUCK (no plan exists)
+2. Read the issue body and the most recent reviewer comment (`**Review complete.**` marker)
+3. Read the most recent `<!-- SCOPE-GATE -->` comment for module + verdict
+4. If the plan references a master plan in `docs/plans/`, skim the relevant section
+5. Produce the walkthrough output using the **Phase 3 format below — verbatim, do not abbreviate**
+6. **Pause.** Wait for the operator response before continuing.
 
-### Operator response → label writes
+### Operator response → label writes + WALKTHROUGH-DECISION comment
 
-Process each response immediately (write labels before moving to the next plan, so an interrupted session retains state):
+Process each response immediately (write labels and the decision comment before moving to the next item, so an interrupted session retains state):
 
-| Response | Action |
-|---|---|
-| `yes` / `next` / `ship it` / `good` | Add `greenlit` label. Record GREENLIT in tally. Move on. |
-| `skip` / `abandon` / `don't do this` / `close this` | Strip `ready`, add `abandoned`. Record ABANDONED + reason in tally. Move on. |
-| `close and replace` / `file new issue for X` | Strip `ready`, add `abandoned`. Record CLOSE+REPLACE + new-issue intent in tally for end-of-walkthrough action. |
-| `amended` / `bundle this with X` / scope correction | Keep labels as-is. Record AMENDED + the change in tally. The amendment is operator intent, not a state-machine transition — `greenlit` still gets added so implementation can proceed. |
-| A question | Answer it. Do not write labels until the operator signals readiness with one of the above. |
+| Operator response | Applies to | Action |
+|---|---|---|
+| `yes` / `next` / `ship it` / `good` | READY-PLAN | Add `greenlit`. Record GREENLIT. Move on. |
+| Operator answer + `ship it` (after Q&A) | NEEDS-MIKE-PLAN | Strip `needs-mike`/`needs-operator`. Add `greenlit`. Post WALKTHROUGH-DECISION comment with the answer. Record GREENLIT-WITH-ANSWER. Move on. |
+| `plan it` / `plan as 3-round` / `plan as 1-round` | SCOPE-GATE-STUCK | Strip `needs-operator`. Post WALKTHROUGH-DECISION comment with verdict (default `PLAN-3-ROUND` if unspecified). Record CLEARED-FOR-PLANNING. Move on. |
+| `defer` / `not this cycle` | Any | Strip `sprint`. Add `deferred`. Record DEFERRED. Move on. |
+| `abandon` / `close this` / `won't do` | Any | Strip `ready`, `needs-mike`, `needs-operator`. Add `abandoned`. Record ABANDONED + reason. Move on. |
+| `close and replace` / `file new issue for X` | Any | Strip `ready`, `needs-mike`, `needs-operator`. Add `abandoned`. Record CLOSE+REPLACE + new-issue intent for Phase 5 follow-up. |
+| `amended` / `bundle this with X` / scope correction | READY-PLAN, NEEDS-MIKE-PLAN | Keep labels as-is, add `greenlit`. Record AMENDED + the change. |
+| `skip for now` / `come back to this` / `not sure yet` | Any | No label changes. No comment writes. Record SKIPPED-PARKED. Move on. Item stays in current state for next walkthrough. |
+| A question | Any | Answer it. Do not write labels or the comment until the operator signals readiness with one of the above. |
 
 ### Label-write commands
 
 ```bash
-# greenlit
+# Greenlit (READY-PLAN)
 gh issue edit N --add-label "greenlit"
 
-# abandoned
-gh issue edit N --remove-label "ready" 2>/dev/null || true
+# Greenlit with answer (NEEDS-MIKE-PLAN, after operator answers reviewer's question)
+gh issue edit N --remove-label "needs-mike,needs-operator" 2>/dev/null || true
+gh issue edit N --add-label "greenlit"
+
+# Cleared for planning (SCOPE-GATE-STUCK)
+gh issue edit N --remove-label "needs-operator" 2>/dev/null || true
+
+# Deferred
+gh issue edit N --remove-label "sprint" 2>/dev/null || true
+gh issue edit N --add-label "deferred"
+
+# Abandoned
+gh issue edit N --remove-label "ready,needs-mike,needs-operator" 2>/dev/null || true
 gh issue edit N --add-label "abandoned"
-
-# amended (after greenlit)
-gh issue edit N --add-label "greenlit"
-# scope-change note goes in the tally, not a label
 ```
 
-If a label-write fails (network, rate limit), retry once. On second failure, log it and continue — the verbal record in the tally is the backup.
+### WALKTHROUGH-DECISION comment
 
-## Phase 3: Per-plan output format (verbatim from /walkthrough-plans Phase 3)
+For NEEDS-MIKE-PLAN (operator-answered) and SCOPE-GATE-STUCK (cleared-for-planning) items, post a comment capturing the decision verbatim. This is the contract handoff to `/sprint-plan` (which reads this comment when its SCOPE-GATE verdict is stale):
 
-The four beats are non-negotiable. This is the format the operator confirmed as the gold standard.
+```bash
+gh issue comment N --body "$(cat <<'EOF'
+<!-- WALKTHROUGH-DECISION -->
+**Verdict:** PLAN-3-ROUND
+**Operator note:** [verbatim operator response, free text]
+**Date:** YYYY-MM-DD
+EOF
+)"
+```
+
+Verdict values:
+- `PLAN-3-ROUND` / `PLAN-1-ROUND` — for SCOPE-GATE-STUCK items, replaces the gate's NEEDS-OPERATOR verdict. `/sprint-plan` reads this on next run.
+- `ANSWER-RECORDED` — for NEEDS-MIKE-PLAN items where the operator answered the reviewer's question. The answer is in the operator note; implementation reads it via the issue comments.
+
+If a label-write or comment-post fails (network, rate limit), retry once. On second failure, log it and continue — the verbal record in the tally is the backup.
+
+## Phase 3: Per-item output format (verbatim from /walkthrough-plans Phase 3)
+
+The four beats are non-negotiable. This is the format the operator confirmed as the gold standard. All three item shapes (READY-PLAN, NEEDS-MIKE-PLAN, SCOPE-GATE-STUCK) use the same 4-beat structure — content adapts, structure does not.
 
 ### Module transition line
 
-If the current plan is the first one in a new module (the previous plan was in a different module), prepend:
+If the current item is the first one in a new module (the previous item was in a different module), prepend:
 
 ```
---- Now in: [Module Name] · [count] plans in this module ---
+--- Now in: [Module Name] · [count] items in this module ---
 ```
 
-Skip for Plan 1 (the position header already names the module). Skip when consecutive plans are in the same module.
+Skip for Item 1 (the position header already names the module). Skip when consecutive items are in the same module.
 
-### Plan body
+### Item body — READY-PLAN
 
 ```
-## Plan N of M — Issue #XXX (READY) · [Module Name]
+## Item N of M — Issue #XXX (READY) · [Module Name]
 
 **Context first:**
-[2-3 sentences. What the system in question even IS. Analogies to consumer products are fine
-("a 'command palette' is the Cmd+K shortcut feature you've used in Linear or Notion").
+[2-3 sentences. What the system in question even IS. Analogies to consumer products are fine.
 Assume the operator did not write the code and may not remember it.]
 
 **The problem:** *(or "The drift," "The dead code," "The opportunity" — match the issue shape)*
-[2-4 sentences. What the issue actually surfaces. Lead with the load-bearing question —
-the one whose answer could invalidate the rest. If it's a real bug, name the user impact.
-If it's dead code, say so directly. If it's a feature, say what users get.]
+[2-4 sentences. What the issue surfaces. Lead with the load-bearing question.]
 
 **What this fix does:**
 - [Concrete bullet. Files or surfaces touched.]
 - [Concrete bullet. Behavior change.]
 - [Concrete bullet. What the operator or a user would notice.]
-- [Optional: deploy footprint — frontend only, edge function deploy, migration, etc.]
+- [Optional: deploy footprint.]
 
 **Trade-offs and sibling findings:**
-[What the critic rounds surfaced (Round 1 structural critiques, Round 2 evidence gaps,
-Round 3 tensions). What the reviewer flagged or resolved. If the reviewer split work
-into multiple PRs but bundling would be cheaper, say so. If the plan reveals "we should
-question whether we even want this feature long-term," surface it here.]
+[Critic rounds, reviewer flags, bundling opportunities, strategic-fit concerns.]
+```
+
+### Item body — NEEDS-MIKE-PLAN (reviewer-escalated)
+
+Same as READY-PLAN, but **prepend a callout** above the 4-beat with the reviewer's specific question. Operator must answer this before the item can be greenlit:
+
+```
+## Item N of M — Issue #XXX (NEEDS YOUR ANSWER) · [Module Name]
+
+**The reviewer's question:**
+> [Verbatim quote from the reviewer comment — the exact escalation. If the reviewer
+> flagged multiple decisions, surface ONE root question that subsumes them, with the
+> sub-points as defaulted overrides ("default to X, override if you want").]
+
+[Then the standard 4-beat body — Context first / The problem / What this fix does / Trade-offs.]
+```
+
+After the 4-beat: present a recommendation with reasoning, then ask the root question. Operator answers, then says ship it (greenlit) or abandon.
+
+### Item body — SCOPE-GATE-STUCK (rare; pre-plan, no plan file)
+
+Same 4-beat skeleton, content adapts because there is no plan to walk:
+
+```
+## Item N of M — Issue #XXX (NEEDS PLANNING DECISION) · [Module Name]
+
+**The gate's question:**
+> [Verbatim quote from the SCOPE-GATE comment — the gate's flagged ambiguity.]
+
+**Context first:**
+[What the system is. Same shape as ready-plan context.]
+
+**The problem:**
+[The issue's surface — what the user/code actually exhibits.]
+
+**What this fix would do:**
+- No plan exists yet. The decision here is whether to plan, defer, or abort.
+- If you say "plan it as 3-round" / "plan it as 1-round," next /sprint-plan run picks it up
+  with the chosen protocol (a WALKTHROUGH-DECISION comment overrides the gate's NEEDS-OPERATOR).
+- If you say "defer," it leaves this sprint.
+- If you say "abort," the issue closes.
+
+**Trade-offs:**
+[The gate's reasoning for parking it — what tradeoffs the gate saw and couldn't resolve.]
 ```
 
 After this block: STOP. Wait for operator response. Process per Phase 2.
@@ -166,14 +261,18 @@ Print **grouped by module**:
 
 ```
 ==========================================
-SPRINT WALKTHROUGH COMPLETE — N plans across M modules
+SPRINT WALKTHROUGH COMPLETE — N items across M modules
 ==========================================
 
-### [Module Name] ([count] plans · [k greenlit, j abandoned])
+### [Module Name] ([count] items · [breakdown])
 - GREENLIT: #N1, #N2 — [one-line outcomes]
+- GREENLIT-WITH-ANSWER: #N6 — [answer + outcome]
+- CLEARED-FOR-PLANNING: #N7 — [verdict assigned]
+- DEFERRED: #N8 — [reason]
 - ABANDONED: #N3 — [reason]
 - AMENDED: #N4 — [scope change agreed]
 - CLOSE + REPLACE: #N5 → new issue: [intent]
+- SKIPPED-PARKED: #N9 — [operator chose to come back later]
 
 ### [Next Module] ...
 
@@ -181,16 +280,21 @@ SIBLING ISSUES TO FILE ([count]):
 - [title] — [why this surfaced during walkthrough] — touches: [module]
 
 SKIPPED ([count]):
-- #N — [reason: no plan artifact / etc.]
+- #N — [reason: no plan artifact, no escalation comment, etc.]
 
 LABEL WRITES APPLIED ([count]):
-- #N: greenlit
-- #N: ready→abandoned
+- #N: +greenlit
+- #N: +greenlit, -needs-mike (with WALKTHROUGH-DECISION comment)
+- #N: -needs-operator (with WALKTHROUGH-DECISION comment, verdict: PLAN-3-ROUND)
+- #N: -ready, +abandoned
 ...
 
 **Your next step**
-- `/sprint-implement` — ship the K greenlit plans (next: #N1, [Module])
-- `/sprint` — see updated sprint status
+[Pick the highest-leverage next action based on what just happened:
+ - If there are now greenlit-not-implementing items → /sprint-implement
+ - If there are CLEARED-FOR-PLANNING items → /sprint-plan to plan them
+ - If everything is terminal → /sprint-end
+ - Otherwise → /sprint for status]
 ```
 
 ## Phase 5: Follow-up actions (operator-authorized)
@@ -210,8 +314,10 @@ For each authorized action, perform the GitHub write. For `close N abandoned iss
 
 ## Standing rules
 
-- **The 4-beat format does not get abbreviated.** This is a saved operator preference. If you find yourself shortening or restructuring, stop.
-- **Write labels per-plan, not at the end.** State must persist across operator pauses or session crashes. The closing tally is a summary, not the source of truth.
-- **One plan at a time.** Never dump multiple plans in one response. Pacing is set by operator readiness.
+- **The 4-beat format does not get abbreviated.** This is a saved operator preference. All three item shapes use it. If you find yourself shortening or restructuring, stop.
+- **One root question per item.** When a NEEDS-MIKE-PLAN or SCOPE-GATE-STUCK item has multiple sub-questions, find the ONE root question whose answer subsumes the others, then surface sub-questions as defaulted overrides ("default to X, override if you want"). Do not present a menu of N parallel questions.
+- **Write labels and the WALKTHROUGH-DECISION comment per-item, not at the end.** State must persist across operator pauses or session crashes. The closing tally is a summary, not the source of truth.
+- **One item at a time.** Never dump multiple items in one response. Pacing is set by operator readiness.
 - **Honor scope corrections without litigation.** Operator override is final. Reviewer's verdict is advisory inside the walkthrough.
-- **Don't second-guess plan quality.** Reviewer cleared these. If a plan looks technically wrong, that's a separate `/review-plans --force` call.
+- **Don't second-guess plan quality.** Reviewer cleared READY-PLANs. If a plan looks technically wrong, that's a separate `/review-plans --force` call.
+- **`skip for now` is a valid outcome.** If the operator isn't ready to decide, accept the parked state and move on. Don't pressure for a decision.
