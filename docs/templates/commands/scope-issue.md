@@ -154,7 +154,7 @@ Read the issue title, body, and GIC block if present (scan for `<!-- GIC-START -
 - Multiple files or surfaces cited
 - New feature, new component, or new system behavior
 - DB migration or schema change implied
-- Cross-system effects mentioned (background jobs, API routes, frontend consumers, etc.)
+- Cross-system effects mentioned (cron workers, edge functions, frontend consumers)
 - Requires verifying or establishing a design decision before implementing
 - GIC block shows multiple modules or cross-module Touches entries
 - `enhancement`, `feature`, `architecture` labels
@@ -166,7 +166,7 @@ Default to PLAN-3-ROUND when ambiguous. PLAN-1-ROUND is an optimization, not a f
 Read `docs/modules.md` if it exists. For each `## <Module Name>` section, capture three things:
 1. **Primary code paths** — from the `Primary code:` line. Index longest-prefix first.
 2. **What-it-does line** — the prose description after `**What it does:**` — used as a keyword bag.
-3. **Path leaf names** — for each primary code path, extract the leaf (e.g. `payment-processor` from `api/jobs/payment-processor/`). Used to catch issues that name the function/component without the full path.
+3. **Path leaf names** — for each primary code path, extract the leaf (e.g. `redeem-promo-code` from `supabase/functions/redeem-promo-code/`). Used to catch issues that name the function/component without the full path.
 
 Run the assignment in tiers and stop at the first tier that produces a hit:
 

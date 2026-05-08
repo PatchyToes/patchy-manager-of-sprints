@@ -55,10 +55,11 @@ Do not propose a new sprint. Do not append. One sprint at a time, period.
 ### 1B. Compute sprint identifier
 
 ```bash
-SPRINT_ID=$(date +%G-W%V)
+LAST_N=$(ls docs/sprints/S*.md docs/sprints/archive/S*.md 2>/dev/null | sed -n 's|.*/S\([0-9]\{1,\}\)\.md|\1|p' | sort -n | tail -1)
+SPRINT_ID="S$(( ${LAST_N:-19} + 1 ))"
 ```
 
-This is the ISO-year-and-week (e.g. `2026-W19`). Used for the manifest filename and the manifest header.
+Sprint IDs are sequential numbers (`S20`, `S21`, `S22`, …). On first run with no existing `S{N}.md` manifests, defaults to `S20`. Each subsequent run increments the highest existing number found in `docs/sprints/` or `docs/sprints/archive/`. Used for the manifest filename and the manifest header. Week-numbered IDs (`2026-W19`) are retired — kept only for already-archived sprints.
 
 ### 1C. Confirm the modules map exists
 
@@ -116,8 +117,20 @@ Then use the Skill tool to invoke `batch-scope` with the appropriate arg (`--for
 ## Phase 2: Read the candidate pool
 
 ```bash
-gh issue list --state open --label scoped --limit 500 --json number,title,body,labels
+gh issue list --state open --label scoped \
+  --search "-label:planned -label:ready -label:needs-operator -label:greenlit -label:implementing -label:abandoned" \
+  --limit 500 --json number,title,body,labels
 ```
+
+The `--search` exclusions are load-bearing. State labels are *supposed to be* mutually exclusive (an issue past planning shouldn't still carry `scoped`), but **label drift happens** — a `/scope-issue --force` re-run, a manual `gh issue edit` adding `scoped` back, or a sprint that ended without stripping `scoped` from rolled-forward `ready` issues all produce dual-labeled issues. Without the explicit exclusions, `--label scoped` will pull in past-planning issues that should stay where they are. This was the source of the W19b → W19 #475 in-flight collision (2026-05-06).
+
+The exclusion set covers every state label downstream of `scoped`:
+- `planned` — planner has already run
+- `ready` — reviewer has cleared the plan
+- `needs-operator` — reviewer escalated, awaiting operator decision (covers the merged needs-mike/needs-operator state)
+- `greenlit` — walkthrough cleared, ready to ship
+- `implementing` — implementation session in flight (parallel-window claim)
+- `abandoned` — terminal-not-shipped (should be closed by `/sprint-end` Step 5A; included here defensively in case it leaked)
 
 For each issue:
 
@@ -153,6 +166,34 @@ Build a map from module name → array of candidate issues. Use the `Module:` va
 
 For display, render module slugs as kebab-case (e.g. `module-a`, `multi-word-module`) — these are the strings `/sprint-plan` accepts as arguments.
 
+## Phase 4.5: Batch large modules (cap = 10 issues per batch)
+
+A "planning batch" is what one `/sprint-plan` invocation processes end-to-end. Cap is 10 issues per batch — beyond that, planner protocols accumulate too much in one orchestrator session and quality degrades (subagent context pressure, harder operator pause/resume, longer recovery on failure).
+
+For each module after Phase 4, count the issues. If `count <= 10`, the module is one batch; slug stays as `<module-slug>` (e.g., `module-a`).
+
+If `count > 10`, split into `ceil(count / 10)` batches as evenly as possible, then assign batch numbers in the same risk-then-issue-number order from Phase 5 (HIGH first, then issue # ascending). Batch slugs are `<module-slug>-batch-N` (e.g., `module-a-batch-1`, `module-a-batch-2`).
+
+Even-split algorithm:
+- 11 → 2 batches: ceil(11/2)=6 and 5 → batch-1 has 6, batch-2 has 5
+- 14 → 2 batches: 7 and 7
+- 21 → 3 batches: 7, 7, 7
+- 25 → 3 batches: 9, 8, 8
+- 30 → 3 batches: 10, 10, 10
+
+Implementation:
+```
+batches_needed = ceil(count / 10)
+base_size = count // batches_needed
+remainder = count % batches_needed
+# First `remainder` batches get base_size+1; remaining batches get base_size
+```
+
+Example for `count=14`, `batches_needed=2`: `base_size=7`, `remainder=0` → both batches size 7.
+Example for `count=11`, `batches_needed=2`: `base_size=5`, `remainder=1` → batch-1 size 6, batch-2 size 5.
+
+Record the batch structure for each module: list of `(batch_slug, [issue_numbers])` tuples. This drives both Phase 5's proposal rendering and Phase 7C's manifest format.
+
 ## Phase 5: Propose the sprint
 
 Sort modules by candidate count, descending. `Cross-cutting` always last regardless of count.
@@ -161,7 +202,7 @@ Within each module, sort issues by:
 1. Risk: HIGH → MEDIUM → LOW (high-risk first so they get planned with full attention)
 2. Issue number ascending
 
-Render the proposal:
+Render the proposal. Single-batch modules render as before. Multi-batch modules render with a module heading + nested `### Batch N` subsections — each batch is a distinct `/sprint-plan` target:
 
 ```
 ==========================================
@@ -170,7 +211,7 @@ SPRINT PROPOSAL — {SPRINT_ID}
 
 Candidate pool: N scoped issues, M after rot filter.
 
-Proposed sprint ({TARGET_SIZE} issues across K modules):
+Proposed sprint ({TARGET_SIZE} issues across K modules, B batches):
 
 ## module-a (8 issues)
 - #341 — [title] · HIGH · PLAN-3
@@ -178,7 +219,15 @@ Proposed sprint ({TARGET_SIZE} issues across K modules):
 - #361 — [title] · MED · PLAN-1
 ...
 
-## module-b (6 issues)
+## module-b (14 issues, 2 batches)
+
+### Batch 1 — module-b-batch-1 (7 issues)
+- #401 — [title] · HIGH · PLAN-3
+- #410 — [title] · MED · PLAN-3
+...
+
+### Batch 2 — module-b-batch-2 (7 issues)
+- #428 — [title] · MED · PLAN-1
 ...
 
 ## cross-cutting (2 issues)
@@ -231,21 +280,28 @@ Process sequentially. On any single-issue failure: log it and continue. At the e
 
 ### 7C. Write the manifest
 
-Create `docs/sprints/{SPRINT_ID}.md`:
+Create `docs/sprints/{SPRINT_ID}.md`. Single-batch modules render as before (one ## heading, flat issue list). Multi-batch modules render with `### Batch N — <batch-slug> (count)` subsections under the module heading:
 
 ```markdown
 # Sprint {SPRINT_ID}
 
 **Started:** YYYY-MM-DD
-**Issues:** N across K modules
+**Issues:** N across K modules (B batches)
 
-## module-a (8)
+## module-a (8 issues)
 - #341 — Title — HIGH · PLAN-3-ROUND
 - #350 — Title — MED · PLAN-3-ROUND
 ...
 
-## module-b (6)
-- #N — Title — risk · protocol
+## module-b (14 issues, 2 batches)
+
+### Batch 1 — module-b-batch-1 (7 issues)
+- #401 — Title — HIGH · PLAN-3-ROUND
+- #410 — Title — MED · PLAN-3-ROUND
+...
+
+### Batch 2 — module-b-batch-2 (7 issues)
+- #428 — Title — MED · PLAN-1-ROUND
 ...
 
 ---

@@ -112,7 +112,7 @@ Roll up:
 
 ## Phase D: Stakes block
 
-For each path in `cited_paths` AND each module name in `module_set`, grep `docs/stakes-index.md` for a section heading that matches the path or module. Stakes-index sections are H2 headings keyed to specific surfaces (e.g., `## api/checkout/`, `## src/components/dashboard/`).
+For each path in `cited_paths` AND each module name in `module_set`, grep `docs/stakes-index.md` for a section heading that matches the path or module. Stakes-index sections are H2 headings keyed to specific surfaces (e.g., `## supabase/functions/ai-chat/`, `## api/cron/brain-function-classifier`).
 
 For each matching section, copy verbatim:
 - **Deploy when changed:**
@@ -124,7 +124,7 @@ Skip Past incidents and Source lines (those are reference, not actionable for th
 
 ## Phase E: Lessons inline
 
-For each path AND each module in `module_set`, grep `docs/lessons-by-surface.md` for a matching H2 heading. Lessons-by-surface sections are keyed to file/directory/pattern (e.g., `## api/checkout/`, `## DB queries / ORM`, `## Planning / protocol workflow`).
+For each path AND each module in `module_set`, grep `docs/lessons-by-surface.md` for a matching H2 heading. Lessons-by-surface sections are keyed to file/directory/pattern (e.g., `## supabase/functions/ai-chat/`, `## Supabase JS / PostgREST queries`, `## Planning / protocol workflow`).
 
 Copy each matching section's lessons verbatim (the `- **Lesson:** ...` bullets). Dedup across module/path overlap.
 
@@ -136,7 +136,7 @@ Read `docs/operating-principles.md`. For each H3 heading section:
 2. Lowercase. Compute substring matches against the union of:
    - Module names from `module_set` (lowercased)
    - Issue label names (lowercased)
-   - Top-level path fragments from `cited_paths` (e.g., from `api/checkout/stripe.ts`, the fragments `api`, `checkout`, `stripe`)
+   - Top-level path fragments from `cited_paths` (e.g., from `supabase/functions/ai-chat/`, the fragments `supabase`, `functions`, `ai-chat`)
 3. If ANY substring appears in the section → include the principle.
 4. Dedup principles across multi-module hits — each principle appears at most once.
 
@@ -174,7 +174,7 @@ max_anchor=$(max of line_anchors)
 If the issue body cites a quoted function/symbol name within ~80 chars of the path (heuristic: scan for backtick-quoted identifiers near each path occurrence), run **presence-grep**:
 ```bash
 grep -n "<symbol>" <path>     # check inside the cited path
-grep -rn "<symbol>" $(echo "{{PATH_PREFIXES}}" | tr '|' ' ')   # check repo-wide if not found in path
+grep -rn "<symbol>" src/ supabase/ api/ scripts/ docs/ tests/   # check repo-wide if not found in path
 ```
 - Found in cited path → `clean`
 - Found elsewhere only → `soft-staleness — symbol moved to <other_path>`
@@ -199,7 +199,7 @@ grep -rn "<symbol>" $(echo "{{PATH_PREFIXES}}" | tr '|' ' ')   # check repo-wide
 
 ## Phase I: Related issues (same neighborhood)
 
-Distinct from Phase H. For each unique top-level path-fragment in `cited_paths` (e.g., `api/checkout`, `src/components/dashboard`), run:
+Distinct from Phase H. For each unique top-level path-fragment in `cited_paths` (e.g., `supabase/functions/ai-chat`, `src/components/brain`), run:
 ```bash
 gh issue list --search "<path-fragment>" --json number,title,state,createdAt,closedAt --limit 10
 ```

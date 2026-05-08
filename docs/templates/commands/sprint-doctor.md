@@ -68,7 +68,7 @@ For each, classify HEALTHY / DEGRADED / BROKEN. Print one line per check.
 
 Fetch label list once: `gh label list --limit 200 --json name --jq '.[].name'`
 
-Required set: `scoped`, `deferred`, `scope:abort`, `planned`, `ready`, `needs-operator`, `abandoned`, `sprint`, `greenlit`, `implementing`, `tracking`.
+Required set: `scoped`, `deferred`, `scope:abort`, `planning`, `planned`, `ready`, `needs-operator`, `abandoned`, `sprint`, `greenlit`, `implementing`, `tracking`.
 
 For each missing label: DEGRADED. **Auto-repair candidate.**
 
@@ -126,10 +126,10 @@ If 3+ consecutive sprints show RISING cross-cutting %:
 - Render the trend so the operator can see it:
   ```
   Cross-cutting trend (last 4 sprints):
-    2026-W16: 47%  baseline
-    2026-W17: 55%  +8
-    2026-W18: 62%  +7
-    2026-W19: 71%  +9  ⚠ rising
+    S16: 47%  baseline
+    S17: 55%  +8
+    S18: 62%  +7
+    S19: 71%  +9  ⚠ rising
   ```
 
 If trend is flat or declining → HEALTHY (informational only).
@@ -277,13 +277,29 @@ If no sprint is in flight: HEALTHY (informational).
 
 Plan files where the issue is still open and the plan file's mtime is >30 days old: DEGRADED. Code may have moved underneath the plan. Suggest re-planning before dispatch.
 
+### 3E. Stale `planning` locks
+
+The `planning` label is the in-flight marker the planner adds at Phase 0 and strips at Phase 11 (success) or Phase 2 (abort cleanup). A planner crash mid-flight can leave the label stuck — concurrent /sprint-plan invocations will then permanently skip the issue.
+
+From the cached `/tmp/sd-all-open.json`, find issues labeled `planning`. For each:
+
+- Check the issue's most recent comment timestamp via the cache (`comments` were not bulk-fetched for non-scoped issues in 2.0 — fall back to a per-issue fetch only for `planning`-labeled issues, which should be a small set in normal operation):
+  ```bash
+  gh issue view N --json comments --template '{{range .comments}}{{.createdAt}}{{"\n"}}{{end}}' | sort -r | head -1
+  ```
+- If the most recent comment is older than 1 hour: DEGRADED. The label is likely stuck from a crashed planner. **Auto-repair candidate.** Strip the `planning` label.
+- If the most recent comment is within the last hour: HEALTHY (informational only — there's an active planning session, leave it alone).
+
+If no `planning`-labeled issues exist: HEALTHY.
+
 ## Phase 4: Auto-repair (only if --repair passed)
 
 For each repair candidate identified above, apply the fix. Print one line per repair: `[REPAIRED] <action>`.
 
 Safe auto-repairs:
-1. **Create missing required labels** — `gh label create <name> --color <color> --description <desc> 2>/dev/null || true`. Color/description per the existing pattern in `/scope-issue` and `/review-plans`.
+1. **Create missing required labels** — `gh label create <name> --color <color> --description <desc> 2>/dev/null || true`. Color/description per the existing pattern in `/scope-issue` and `/review-plans`. For `planning`, use color `fbca04` and description `Planner is actively planning this issue`.
 2. **Strip `sprint` from closed issues** — `gh issue edit N --remove-label sprint`. Closed-issue cleanup is unambiguous; reversal cost is one label add.
+3. **Strip stale `planning` locks (3E)** — `gh issue edit N --remove-label planning`. Only when the most recent comment is older than 1 hour; recovery is a label add if the operator was actually planning.
 
 Do NOT auto-apply:
 - Re-scoping corrupt issues (touches comments, may overwrite operator notes)

@@ -13,6 +13,9 @@ const substitutions = {
   '{{OPERATOR}}': 'Operator',
   '{{PATH_PREFIXES}}': 'src|app|lib|api|tests|docs|scripts',
 };
+
+// setup-pipeline intentionally excluded — bootstrap-only skill, runs once per repo to install the pipeline; not part of the runtime loop.
+// walkthrough-plans removed 2026-05-08 — superseded by /sprint-walkthrough which does everything walkthrough-plans did plus writes operator-decision labels.
 const skills = [
   'enrich-issue',
   'scope-issue',
@@ -20,7 +23,6 @@ const skills = [
   'plan-issue-one-round',
   'plan-issue-three-round',
   'review-plans',
-  'walkthrough-plans',
   'sprint-start',
   'sprint',
   'sprint-plan',

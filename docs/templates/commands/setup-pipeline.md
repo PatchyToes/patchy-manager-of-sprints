@@ -129,7 +129,7 @@ I've read the codebase. Here's what I know so far:
 
 Five things I can't determine from the code:
 
-1. **Deploy process:** How do changes go live? (e.g. "git push auto-deploys via Vercel/Netlify", "CI runs tests then deploys", or "I run `npm run deploy` manually")
+1. **Deploy process:** How do changes go live? (e.g. "git push auto-deploys via Vercel" or "I run `supabase functions deploy` manually")
 
 2. **Highest-stakes surfaces:** Which files or systems, if broken, would hurt real users most? Examples: payment processing, authentication, a specific database table, an external API integration.
 
@@ -209,7 +209,7 @@ The 14 portable skills to install, grouped by layer:
 
 ```
 Triage layer:    enrich-issue, scope-issue, batch-scope
-Planning layer:  plan-issue-one-round, plan-issue-three-round, review-plans, walkthrough-plans
+Planning layer:  plan-issue-one-round, plan-issue-three-round, review-plans
 Sprint layer:    sprint, sprint-start, sprint-plan, sprint-walkthrough,
                  sprint-implement, sprint-end, sprint-retro, sprint-doctor
 ```
@@ -222,7 +222,7 @@ Sprint layer:    sprint, sprint-start, sprint-plan, sprint-walkthrough,
   ```bash
   mkdir -p .claude/commands
   for skill in enrich-issue scope-issue batch-scope \
-               plan-issue-one-round plan-issue-three-round review-plans walkthrough-plans \
+               plan-issue-one-round plan-issue-three-round review-plans \
                sprint sprint-start sprint-plan sprint-walkthrough \
                sprint-implement sprint-end sprint-retro sprint-doctor; do
     gh api repos/{owner}/{repo}/contents/docs/templates/commands/${skill}.md \

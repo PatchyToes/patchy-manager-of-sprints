@@ -48,10 +48,11 @@ Exit 0.
 ## Phase 2: Resolve sprint identifier
 
 ```bash
-SPRINT_ID=$(ls docs/sprints/*.md 2>/dev/null | sort -r | head -1 | xargs -I {} basename {} .md)
+SPRINT_ID=$(ls docs/sprints/S*.md 2>/dev/null | sed -n 's|.*/\(S[0-9]\{1,\}\)\.md|\1|p' | sort -V | tail -1)
+[ -z "$SPRINT_ID" ] && SPRINT_ID=$(ls docs/sprints/*.md 2>/dev/null | grep -v '/archive/' | sort -r | head -1 | xargs -I {} basename {} .md)
 ```
 
-If no manifest exists, fall back to `date +%G-W%V` and add a footer warning that the manifest was missing.
+Picks the highest-numbered `S{N}.md` from `docs/sprints/` (excluding `archive/`). Falls back to legacy `2026-W{N}.md` style if no `S{N}.md` exists yet (transitional). If no manifest exists at all, add a footer warning that the manifest was missing.
 
 ## Phase 3: Tally outcomes
 
@@ -61,7 +62,7 @@ For each `sprint`-labeled issue, classify by current state:
 - **GREENLIT-NOT-SHIPPED** — open + has `greenlit` (walkthrough cleared, never implemented this sprint)
 - **READY-NOT-WALKED** — open + has `ready` + no `greenlit` (reviewer cleared, walkthrough never reached it)
 - **PLANNED-NOT-REVIEWED** — open + has `planned` + no `ready`/`needs-operator`/`abandoned` (planner ran, reviewer didn't finish)
-- **NEEDS-OPERATOR** — open + has `needs-operator` (reviewer or scope-gate escalated, never resolved)
+- **NEEDS-OPERATOR** — open + has `needs-operator` (reviewer escalated, never resolved)
 - **ABANDONED** — open + has `abandoned` (walkthrough rejected)
 - **NEVER-PLANNED** — open + has `scoped` only (sprint set but planning never happened)
 
@@ -196,9 +197,22 @@ After Steps 1–3, update the `## Outcomes` section's `Scratchpad lifecycle:` li
 Scratchpad lifecycle: R resolved (originally K, +N moot, +M carried), A unresolved active.
 ```
 
-## Phase 5: Label cleanup (skip if --dry-run)
+## Phase 5: Label cleanup + abandoned-issue closure (skip if --dry-run)
 
-For each `sprint`-labeled issue:
+### Step 5A: Close `abandoned`-and-open issues
+
+For each `sprint`-labeled issue that is **open** AND carries the `abandoned` label, close it with `--reason "not planned"`. The walkthrough or reviewer already made the closure decision when it applied `abandoned` — leaving the issue open creates re-scope noise on every future `/batch-scope` and clutters every status output.
+
+```bash
+# For each sprint-labeled, abandoned, open issue:
+gh issue close N --reason "not planned" --comment "Closed at sprint end ({SPRINT_ID}). Walkthrough/reviewer verdict: ABANDONED. See plan artifact at docs/protocol-test-runs/issue-N-{three,one}-round.md or the WALKTHROUGH-DECISION / REVIEWER-VERDICT comment for full reasoning."
+```
+
+If the operator wanted to keep the issue alive for re-scope at a future date, the correct label is `deferred` (with a measurable trigger condition), not `abandoned`. The two labels are intentionally distinct.
+
+### Step 5B: Strip sprint-scoped labels
+
+For each `sprint`-labeled issue (closed by Step 5A or otherwise):
 
 ```bash
 gh issue edit N --remove-label "sprint" 2>/dev/null || true
@@ -206,9 +220,9 @@ gh issue edit N --remove-label "greenlit" 2>/dev/null || true
 gh issue edit N --remove-label "implementing" 2>/dev/null || true
 ```
 
-`greenlit` and `implementing` are sprint-scoped — they have no meaning outside an active sprint, so they get cleared too. State labels (`scoped`, `planned`, `ready`, `needs-operator`, `abandoned`) are preserved — they remain valid even when the issue isn't in a sprint, and the next sprint may want to re-consume them.
+`greenlit` and `implementing` are sprint-scoped — they have no meaning outside an active sprint, so they get cleared too. State labels (`scoped`, `planned`, `ready`, `needs-operator`) are preserved — they remain valid even when the issue isn't in a sprint, and the next sprint may want to re-consume them. `abandoned` is stripped on closed-by-5A issues (closure makes the label moot).
 
-Process sequentially; on any single failure, log and continue. Report `Label cleanup: M of N succeeded. Failures: [list].`
+Process sequentially; on any single failure, log and continue. Report `Label cleanup: M of N succeeded, K abandoned-and-closed. Failures: [list].`
 
 ## Phase 6: Auto-run retro (auto-derived only)
 

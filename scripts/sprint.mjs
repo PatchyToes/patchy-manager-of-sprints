@@ -8,12 +8,15 @@
 //
 // State → color mapping
 // ---------------------
-//   IMPLEMENTED                            🟩  shipped (closed with `Closes #N`)
-//   PLANNED, READY, IMPLEMENTING           🟧  active progress in the pipeline
-//   GREENLIT                               🟨  walkthrough cleared, ready to ship
-//   SCOPED                                 ⬛  queued, planning hasn't started
-//   ABANDONED                              🟦  closed terminal, won't be done
-//   NEEDS-MIKE / NEEDS-OPERATOR            🟥  blocked, needs operator decision
+//   IMPLEMENTED                                        🟩  shipped (closed with `Closes #N`)
+//   PLANNING, PLANNED, READY, IMPLEMENTING             🟧  active progress in the pipeline
+//   GREENLIT                                           🟨  walkthrough cleared, ready to ship
+//   SCOPED                                             ⬛  queued, planning hasn't started
+//   ABANDONED                                          🟦  closed terminal, won't be done
+//   NEEDS-MIKE / NEEDS-OPERATOR                        🟥  blocked, needs operator decision
+//
+// PLANNING is the in-flight marker: planner is currently working on this issue.
+// Stripped on planner Phase 11 success (→ PLANNED) or Phase 2 abort (→ NEEDS_OPERATOR).
 //
 // Display order within each bar (left to right):
 //   🟩 → 🟧 → 🟨 → ⬛ → 🟦 → 🟥  (furthest-along to least-along)
@@ -54,6 +57,7 @@ const DISPLAY_ORDER = ['shipped', 'active', 'ready', 'queued', 'abandoned', 'blo
 const STATE_TO_COLOR = {
   IMPLEMENTED: 'shipped',
   IMPLEMENTING: 'active',
+  PLANNING: 'active',
   PLANNED: 'active',
   READY: 'active',
   GREENLIT: 'ready',
@@ -96,11 +100,12 @@ function stateForIssue(issue, isClosed) {
     return 'IMPLEMENTED';
   }
   if (labels.includes('abandoned')) return 'ABANDONED';
-  if (labels.includes('needs-mike') || labels.includes('needs-operator')) return 'NEEDS_OPERATOR';
+  if (labels.includes('needs-operator')) return 'NEEDS_OPERATOR';
   if (labels.includes('implementing')) return 'IMPLEMENTING';
   if (labels.includes('greenlit')) return 'GREENLIT';
   if (labels.includes('ready')) return 'READY';
   if (labels.includes('planned')) return 'PLANNED';
+  if (labels.includes('planning')) return 'PLANNING';
   return 'SCOPED';
 }
 
@@ -171,15 +176,25 @@ if (openRaw.length === 0) {
 const closedRaw = JSON.parse(gh('issue list --state closed --label sprint --limit 100 --json number,title,labels,closedAt'));
 
 // Phase 2: resolve sprint identifier
+//
+// Manifest discovery prefers S-numbered format (S20, S21, ...) sorted numerically
+// descending. Falls back to legacy `YYYY-W{N}` lex-descending only if no S-numbered
+// manifests exist (transitional). Subdirectories like `archive/` are automatically
+// excluded by the `.endsWith('.md')` filter on readdirSync's top-level entries.
 let sprintId = null;
 let manifestPath = null;
 let manifestWarning = null;
 
 try {
-  const files = readdirSync('docs/sprints')
-    .filter(f => f.endsWith('.md'))
+  const allFiles = readdirSync('docs/sprints').filter(f => f.endsWith('.md'));
+  const sFiles = allFiles
+    .filter(f => /^S\d+\.md$/.test(f))
+    .sort((a, b) => parseInt(b.match(/^S(\d+)/)[1], 10) - parseInt(a.match(/^S(\d+)/)[1], 10));
+  const legacyFiles = allFiles
+    .filter(f => /^\d{4}-W\d+/.test(f))
     .sort()
     .reverse();
+  const files = sFiles.length > 0 ? sFiles : legacyFiles;
   if (files.length > 0) {
     sprintId = files[0].replace(/\.md$/, '');
     manifestPath = path.join('docs/sprints', files[0]);
@@ -192,24 +207,50 @@ if (!sprintId) {
 }
 
 // Phase 3: parse manifest
+//
+// Module headings come in two flavors:
+//   ## module-name (3)                          ← single-batch (legacy + small modules)
+//   ## module-name (14 issues, 2 batches)       ← multi-batch (Phase 4.5 batched modules)
+// For multi-batch modules, batches are introduced by `### Batch N — slug (count issues)`
+// subsections. issueToBatch maps every issue in a multi-batch module to its batch number;
+// single-batch issues are not in issueToBatch (rendered flat by default).
 const issueToModule = {};
-const manifestModuleOrder = [];
+const issueToBatch = {};
+const moduleIsMultiBatch = {};
+const moduleBatchOrder = {}; // module -> [batchNum, batchNum, ...]
 
 if (manifestPath) {
   const manifest = readFileSync(manifestPath, 'utf8');
   const lines = manifest.split('\n');
   let currentModule = null;
+  let currentBatch = null;
   for (const line of lines) {
     if (line.startsWith('---')) break;
-    const moduleMatch = line.match(/^##\s+([a-z][\w-]*)\s+\((\d+)\)/);
+    const moduleMatch = line.match(/^##\s+([a-z][\w-]*)\s+\((\d+)(?:\s+issues?)?(?:,\s+(\d+)\s+batches?)?\)/);
     if (moduleMatch) {
       currentModule = moduleMatch[1];
-      manifestModuleOrder.push(currentModule);
+      currentBatch = null;
+      const batchCount = moduleMatch[3] ? parseInt(moduleMatch[3], 10) : 1;
+      moduleIsMultiBatch[currentModule] = batchCount > 1;
+      moduleBatchOrder[currentModule] = [];
+      continue;
+    }
+    const batchMatch = line.match(/^###\s+Batch\s+(\d+)\s+—\s+(\S+)\s+\(\d+\s+issues?\)/);
+    if (batchMatch && currentModule) {
+      currentBatch = parseInt(batchMatch[1], 10);
+      if (!moduleBatchOrder[currentModule].includes(currentBatch)) {
+        moduleBatchOrder[currentModule].push(currentBatch);
+      }
       continue;
     }
     if (currentModule) {
       const issueMatch = line.match(/^-\s+#(\d+)/);
-      if (issueMatch) issueToModule[issueMatch[1]] = currentModule;
+      if (issueMatch) {
+        issueToModule[issueMatch[1]] = currentModule;
+        if (currentBatch !== null && moduleIsMultiBatch[currentModule]) {
+          issueToBatch[issueMatch[1]] = currentBatch;
+        }
+      }
     }
   }
 }
@@ -250,10 +291,18 @@ console.log(`SPRINT ${sprintId} — ${totalIssues} issues across ${moduleCount} 
 console.log('==========================================');
 console.log('');
 
-const maxModuleWidth = Math.max(...sortedModules.map(m => m.length));
+// For padding, account for both module names AND batch row labels ("├─ batch N").
+const batchLabelWidths = sortedModules.flatMap(mod => {
+  if (!moduleIsMultiBatch[mod]) return [];
+  return moduleBatchOrder[mod].map(n => `├─ batch ${n}`.length);
+});
+const maxModuleWidth = Math.max(
+  ...sortedModules.map(m => m.length),
+  ...batchLabelWidths,
+  0
+);
 
-for (const mod of sortedModules) {
-  const list = moduleStats[mod];
+function renderRow(label, list, options = {}) {
   const counts = bucketCounts(list);
   const bar = buildBar(counts, list.length);
   const sum = summary(counts, list.length);
@@ -261,12 +310,48 @@ for (const mod of sortedModules) {
   const allBlocked = counts.blocked === list.length && list.length > 0;
   const allAbandoned = counts.abandoned === list.length && list.length > 0;
   let suffix = '';
-  if (allShipped) suffix = ' — fully shipped';
-  else if (allBlocked) suffix = ' — needs operator decision';
-  else if (allAbandoned) suffix = ' — wiped';
-  const padded = mod.padEnd(maxModuleWidth);
+  if (options.suppressSuffix !== true) {
+    if (allShipped) suffix = ' — fully shipped';
+    else if (allBlocked) suffix = ' — needs operator decision';
+    else if (allAbandoned) suffix = ' — wiped';
+  }
+  const padded = label.padEnd(maxModuleWidth);
   const sizeStr = `(${list.length})`.padStart(4);
-  console.log(`  ${padded} ${sizeStr}: ${bar}  ${sum}${suffix}`);
+  const indent = options.indent || '  ';
+  console.log(`${indent}${padded} ${sizeStr}: ${bar}  ${sum}${suffix}`);
+}
+
+for (const mod of sortedModules) {
+  const list = moduleStats[mod];
+  // Module-level row — aggregate of all issues in the module (across batches if any).
+  renderRow(mod, list);
+
+  if (moduleIsMultiBatch[mod]) {
+    // Sub-rows per batch. Within each module, issues are bucketed by batch number;
+    // any module-issue without an explicit batch (shouldn't happen if manifest is
+    // well-formed) falls into a synthetic "unbatched" sub-row to surface the drift.
+    const batchedIssues = {};
+    const unbatched = [];
+    for (const i of list) {
+      const b = issueToBatch[String(i.number)];
+      if (b == null) unbatched.push(i);
+      else {
+        if (!batchedIssues[b]) batchedIssues[b] = [];
+        batchedIssues[b].push(i);
+      }
+    }
+    const batchNums = moduleBatchOrder[mod].slice();
+    for (let i = 0; i < batchNums.length; i++) {
+      const n = batchNums[i];
+      const isLast = i === batchNums.length - 1 && unbatched.length === 0;
+      const corner = isLast ? '└─' : '├─';
+      const batchList = batchedIssues[n] || [];
+      renderRow(`${corner} batch ${n}`, batchList, { indent: '    ', suppressSuffix: true });
+    }
+    if (unbatched.length > 0) {
+      renderRow('└─ unbatched', unbatched, { indent: '    ', suppressSuffix: true });
+    }
+  }
 }
 
 console.log('```');
@@ -278,6 +363,7 @@ const greenlitNotImpl = openIssues.filter(i => i.state === 'GREENLIT');
 const readyNotGreenlit = openIssues.filter(i => i.state === 'READY');
 const needsOperator = openIssues.filter(i => i.state === 'NEEDS_OPERATOR');
 const planned = openIssues.filter(i => i.state === 'PLANNED');
+const planning = openIssues.filter(i => i.state === 'PLANNING');
 const implementing = openIssues.filter(i => i.state === 'IMPLEMENTING');
 const scoped = openIssues.filter(i => i.state === 'SCOPED');
 
@@ -290,18 +376,22 @@ const parts = [`${totalShipped} shipped`];
 if (implementing.length > 0) parts.push(`${implementing.length} implementing`);
 if (greenlitNotImpl.length > 0) parts.push(`${greenlitNotImpl.length} greenlit`);
 if (readyNotGreenlit.length > 0) parts.push(`${readyNotGreenlit.length} awaiting walkthrough`);
-if (planned.length > 0) parts.push(`${planned.length} planning`);
+if (planned.length > 0) parts.push(`${planned.length} awaiting reviewer`);
+if (planning.length > 0) parts.push(`${planning.length} planning in progress`);
 if (scoped.length > 0) parts.push(`${scoped.length} scoped`);
 if (needsOperator.length > 0) parts.push(`${needsOperator.length} blocked`);
 if (totalAbandoned > 0) parts.push(`${totalAbandoned} abandoned`);
 console.log(parts.join(', ') + '.');
 
-// In progress (currently implementing) — anchor for "what was I working on"
-if (implementing.length > 0) {
+// In progress (currently implementing or being planned) — anchor for "what's in flight right now"
+if (implementing.length > 0 || planning.length > 0) {
   console.log('');
   console.log('In progress:');
   for (const i of implementing) {
-    console.log(`  - #${i.number} (${i.module}) — ${i.title}`);
+    console.log(`  - #${i.number} (${i.module}) — ${i.title} [implementing]`);
+  }
+  for (const i of planning) {
+    console.log(`  - #${i.number} (${i.module}) — ${i.title} [planning]`);
   }
 }
 
@@ -323,10 +413,17 @@ if (greenlitNotImpl.length > 0) {
 } else if (readyNotGreenlit.length > 0 || needsOperator.length > 0) {
   console.log('`/sprint-walkthrough` — walk through cleared plans + escalations. Stay-at-keyboard.');
 } else if (scoped.length > 0) {
-  console.log('`/sprint-plan` — picks the next module and plans its issues. Stay-at-keyboard ~1min, then walk away.');
+  if (planning.length > 0) {
+    console.log(`\`/sprint-plan\` — ${planning.length} plan${planning.length > 1 ? 's' : ''} in flight, ${scoped.length} scoped issue${scoped.length > 1 ? 's' : ''} still available. Open a new window and run /sprint-plan to attack the next batch in parallel, or wait for the in-flight plan${planning.length > 1 ? 's' : ''} to finish first.`);
+  } else {
+    console.log('`/sprint-plan` — picks the next batch and plans its issues. Stay-at-keyboard ~1min, then walk away.');
+  }
 } else if (implementing.length > 0) {
   const list = implementing.map(i => '#' + i.number).join(', ');
   console.log(`Wait state — ${implementing.length} implementation${implementing.length > 1 ? 's' : ''} in flight (${list}). Re-run \`/sprint\` in a few minutes, then \`/sprint-end\` once they land.`);
+} else if (planning.length > 0) {
+  const list = planning.map(i => '#' + i.number).join(', ');
+  console.log(`Wait state — ${planning.length} plan${planning.length > 1 ? 's' : ''} being drafted (${list}). The planner takes ~5–15 min per issue. Re-run \`/sprint\` when they land.`);
 } else if (planned.length > 0) {
   console.log(`Wait state — ${planned.length} plan${planned.length > 1 ? 's' : ''} still in reviewer. Re-run \`/sprint\` in a few minutes.`);
 } else {

@@ -44,9 +44,11 @@ gh label create "implementing" --color "fbca04" --description "Implementation se
 
 Fetch greenlit candidates that are NOT already being implemented:
 ```bash
-gh issue list --state open --label sprint --label ready --label greenlit --limit 50 --json number,title,labels | \
+gh issue list --state open --label sprint --label greenlit --limit 50 --json number,title,labels | \
   jq '[.[] | select(.labels[].name != "implementing")]'
 ```
+
+`greenlit` is the load-bearing decision label: it means the operator walked the plan through and approved it for implementation, regardless of whether the issue arrived at walkthrough as `ready` (reviewer auto-cleared) or `needs-operator` (reviewer escalated, operator answered). `ready` is a *pre-walkthrough* state owned by `/review-plans`; once `greenlit` exists, `ready` is informational, not gating.
 
 The `implementing` exclusion is what enables parallel sessions: if you already ran `/sprint-implement` in another window, that issue is now claimed and won't be picked again here.
 
@@ -58,7 +60,7 @@ Exit 0.
 
 ### Resolution
 
-- **`$1` is a number** — verify it carries `sprint`, `ready`, `greenlit`. If not, abort with the missing labels listed.
+- **`$1` is a number** — verify it carries `sprint` and `greenlit`. If not, abort with the missing labels listed.
 - **`$1` is a module slug** — filter candidates to that module (parse from each issue's SCOPE-GATE comment). Pick the lowest issue number.
 - **No `$1`** — group candidates by module (same module ordering as `/sprint`). Pick the first issue in the first module that has greenlit plans.
 
@@ -72,7 +74,7 @@ For the chosen issue:
    - Plan v4 / v2 (final) — the actual implementation steps
    - Cross-system effects
    - ISSUE MANAGEMENT section (out-of-scope items to file, master plan registration, close-out checklist)
-4. Note the deploy footprint — does it touch frontend code, backend services, database schema/migrations, scheduled jobs, etc. (per the deploy process documented in this repo's CLAUDE.md).
+4. Note the deploy footprint — does it touch `supabase/functions/`, `supabase/migrations/`, `src/`, etc.
 
 ## Phase 3: Print the handoff brief
 
@@ -109,7 +111,7 @@ Read these in order:
 3. The issue: gh issue view N --comments
 
 Then implement the plan. When you ship:
-- Use the full deploy pipeline per this repo's CLAUDE.md (the deploy steps that take a commit from `main` to live)
+- Use the full deploy pipeline per CLAUDE.md (commit + push to main + functions deploy + db push as needed)
 - DO NOT create a PR — push directly to main, that's the codebase convention
 - The commit message body MUST contain `Closes #N` on its own line. Example:
     fix(scope): one-line subject

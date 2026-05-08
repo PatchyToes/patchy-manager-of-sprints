@@ -1,19 +1,21 @@
 ---
-description: Run the three-round planning protocol on a GitHub issue. Produces a technical artifact for the Reviewer session — not for direct human consumption. (Requires: Task/Agent dispatch tool + a `scoped` or unlabeled issue — run /scope-issue first for triage.)
+description: Run the three-round planning protocol on a GitHub issue. Orchestrator-mediated — spawns persistent planner and critic subagents and shuttles messages between them. Produces a technical artifact for the Reviewer session — not for direct human consumption. (Requires: Agent + SendMessage tools — needs `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1` env. Run /scope-issue first for triage.)
 argument-hint: <issue_number>
 ---
 
-# Planner Protocol — Three Round (v3)
+# Planner Protocol — Three Round (v4)
 
 {{INCLUDE:glossary}}
 
-You are the **Planner**. You run on GitHub issue #$1.
+You are the **Orchestrator**. You run on GitHub issue #$1.
 
-## Who reads your output
+You do not write the plan yourself. You spawn a **planner subagent** that produces plans v1 through v4, and a **critic subagent** that produces critiques 1 through 3. You shuttle messages between them via `SendMessage`, write artifacts to disk between phases, and at the end dispatch a fresh reviewer subagent for the routing verdict.
 
-Your output is read by the **Reviewer** — a separate Claude Code session that reads completed plan files and produces a triaged list (ready / needs human / abandon). {{OPERATOR}} does not read your output directly. They read the Reviewer's triaged list and acts on the items the Reviewer flags.
+## Who reads the output
 
-This means your output is **technical ammunition for the Reviewer**, not a human-readable deliverable. Density and groundedness matter more than readability. Don't summarize. Don't simplify. Surface every constraint you can find. The Reviewer needs the raw material to defend the plan when {{OPERATOR}} pushes back.
+The Reviewer (a separate Claude Code session, dispatched in Phase 12) reads `docs/protocol-test-runs/issue-$1-three-round.md` and produces a triaged list (ready / needs operator / abandon). {{OPERATOR}} does not read your output directly. They read the Reviewer's triaged list and act on the items the Reviewer flags.
+
+This means the planner's output is **technical ammunition for the Reviewer**, not a human-readable deliverable. Density and groundedness matter more than readability. The Reviewer needs the raw material to defend the plan when {{OPERATOR}} pushes back.
 
 ## What "good" looks like
 
@@ -25,29 +27,32 @@ A good plan is one where the Reviewer, reading it cold, can answer the operator'
 4. Do we know what the outcome looks like?
 5. Do we know how this affects other parts of the app?
 
-If the Reviewer can answer all five with citations from your output, the plan is ready. If the Reviewer has to extrapolate, the plan is incomplete and you should have caught it.
+If the Reviewer can answer all five with citations from the planner's output, the plan is ready. If the Reviewer has to extrapolate, the plan is incomplete and the orchestrator should have caught it before the reviewer dispatch.
 
-The signal that you've done enough: the critic rounds start surfacing nitpicks instead of substantive issues. That's the sudoku-is-solvable signal — enough constraint density that the answer is determined.
+The signal that the planner has done enough: the critic rounds start surfacing nitpicks instead of substantive issues. That's the sudoku-is-solvable signal — enough constraint density that the answer is determined.
 
 ## Roles and memory model
 
-- **You (Planner / Claude Code)** draft the plan and revise it across rounds. You retain memory across all three rounds — iterative refinement is your job.
+Three subagents per issue, each persistent across the rounds it participates in:
 
-- **The Critic** is a subagent dispatched via the `Task` tool, three times. Each dispatch is technically a fresh subagent (Claude Code does not expose subagent continuation), so the Planner simulates conversational continuity by passing prior critique(s) into each later dispatch:
-  - **Round 1 Critic** — sees plan v1 only. Job: find what's wrong.
-  - **Round 2 Critic** — sees plan v2 + Round 1 critique. Job: evidence audit on v2. Round 1 is included as context, not for re-litigation.
-  - **Round 3 Critic** — sees plan v3 + Round 1 critique + Round 2 critique. Job: surface external unknowns whose answers would change the plan.
+- **Planner subagent** — spawned in Phase 3 with the full setup context (issue body, IK file paths, scope envelope, recon findings). Persists across all 4 plan versions via SendMessage continuations. Reads from disk on demand (has Read tool access). Retains working memory across rounds — the same brain produces v1, v2, v3, v4.
 
-The intent is to mimic a single critic carrying one conversation across three turns. The shifting question per round (what's wrong → evidence → external unknowns) is what prevents bias; "fresh subagents to avoid bias" was the prior model and is no longer the design rationale.
+- **Critic subagent** — spawned in Phase 4 with plan v1 and the Round 1 question. Persists across all 3 rounds via SendMessage continuations. The shifting question per round (what's wrong → evidence grounding → what would we need to learn) is what prevents bias. Same brain, three different lenses.
+
+- **Reviewer subagent** — fresh one-shot, dispatched in Phase 12 after plan v4 is finalized. Reads `plan-v4.md` + the 3 critique files by default; sidecars (`plan-v1.md` through `plan-v3.md`) are available in the issue folder and the reviewer reads them on demand if it wants trajectory context.
+
+You (the orchestrator) hold no plan content in active reasoning. You shepherd messages, write artifacts to disk, and recover from failures. The orchestrator's main session context stays small because all heavy artifacts live inside the subagents (which die between issues) and on disk.
 
 ## Standing rules
+
+These apply to the planner subagent's output. The orchestrator enforces them by including them in the planner's first-turn prompt.
 
 - **Definition-before-decision**: No decision invoking a concept/term/named component is valid until defined in writing. If the plan uses a term not in canonical docs, that's a Reviewer-escalation item — surface it explicitly in the evidence trail.
 - **Reversibility**: State the reversibility of every architectural decision (cheap, expensive, one-way).
 - **Single source of truth per workstream**: Master plan files are authoritative for active multi-session features.
 - **No fake answers**: Empty lists are valid output. Do not generate items to fill sections. Every claim must cite a specific source (file:line, doc reference, issue, or stated assumption with rationale).
-- **No silent protocol degradation**: This protocol's name asserts three rounds of fresh-subagent critique. If you cannot run real `Task()` dispatches for the three Critic rounds, you must NOT produce output labeled "three-round." See Phase 0 below.
-- **Commit or escalate. No hedges.** Every output — plan prose, critic responses, evidence trail entries, ISSUE MANAGEMENT subsections, debrief sections — either commits to a position or escalates a clean structural question. Hedging (softening a position to avoid commitment, surfacing a concern without resolving or filing it, noting something for unspecified later attention) transfers disambiguation cost to the human reviewer and defeats the protocol's purpose. Examples of banned shapes (illustrative, not exhaustive — the principle covers any equivalent phrasing the model invents to route around the examples): "worth considering," "minor concern," "fair point but," "noted for follow-up," "could potentially," "we may want to," "not a blocker but." Replace with one of: a stated decision with reasoning, a filed issue with priority + label, a clean escalation as a structural question for the Reviewer, or silence. If a thought doesn't meet one of those bars, do not surface it. Plan prose is not a parking lot for thoughts that aren't decisions.
+- **No silent protocol degradation**: This protocol's name asserts three rounds of adversarial critique by a persistent critic subagent. If you cannot run real `Agent()` and `SendMessage()` dispatches, you must NOT produce output labeled "three-round." See Phase 0 below.
+- **Commit or escalate. No hedges.** Every output — plan prose, critic responses, evidence trail entries, ISSUE MANAGEMENT subsections, debrief sections — either commits to a position or escalates a clean structural question. Hedging (softening a position to avoid commitment, surfacing a concern without resolving or filing it, noting something for unspecified later attention) transfers disambiguation cost to the human reviewer and defeats the protocol's purpose. Banned shapes (illustrative, not exhaustive — the principle covers any equivalent phrasing the model invents to route around the examples): "worth considering," "minor concern," "fair point but," "noted for follow-up," "could potentially," "we may want to," "not a blocker but." Replace with one of: a stated decision with reasoning, a filed issue with priority + label, a clean escalation as a structural question for the Reviewer, or silence. If a thought doesn't meet one of those bars, do not surface it. Plan prose is not a parking lot for thoughts that aren't decisions.
 
 ## Phase 0: Pre-flight gates (fail-closed)
 
@@ -66,63 +71,60 @@ gh issue view $1 --json labels --jq '[.labels[].name]'
 
 ### Tool availability
 
-Before doing anything else, verify that the `Task` tool (or equivalent agent-dispatch tool — `Agent`, `subagent_type`-aware dispatcher, etc.) is actually available in this session.
+The orchestrator-mediated protocol requires both `Agent` (to spawn subagents) and `SendMessage` (to continue them). `SendMessage` is gated behind `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1` — verify both tools are available before proceeding.
 
-Quick probes you may use:
-- Inspect the available-tools list at the top of your prompt for `Task`, `Agent`, or any tool whose description matches "launch a subagent / dispatch agent."
-- If unsure, attempt one trivial probe dispatch (e.g., a no-op agent task) and observe whether it succeeds.
+Quick probes:
+- Inspect the available-tools list at the top of your prompt for `Agent` and `SendMessage`.
+- If unsure, attempt a trivial probe: spawn a no-op agent, then SendMessage to it, observe both succeed.
 
-**If the tool is NOT available**, the protocol's three-round adversarial critique cannot be executed. You MUST:
+**If either tool is NOT available**, the protocol cannot run. You MUST:
 
-1. Write the output file with the literal first line `PROTOCOL FAILURE: Task/Agent dispatch tool unavailable in this session — three-round protocol requires fresh subagent dispatches for Rounds 1, 2, 3.`
+1. Write the output file with the literal first line `PROTOCOL FAILURE: Agent or SendMessage tool unavailable in this session — three-round protocol requires orchestrator-mediated dispatch. Verify CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1 in .claude/settings.local.json.`
 2. Do NOT label the output "three-round." Do NOT produce a v1 → v4 plan body. Do NOT self-write critic rounds and call them rounds.
-3. Surface to the user: "Protocol cannot run as designed. Either (a) re-invoke from a session/harness that exposes Task, or (b) explicitly authorize the no-critic single-pass fallback with `--allow-no-critic`. Without that authorization, no plan is produced."
+3. Surface to the user: "Protocol cannot run as designed. Either (a) re-invoke from a session where Agent + SendMessage are available, or (b) explicitly authorize the no-critic single-pass fallback with `--allow-no-critic`. Without that authorization, no plan is produced."
 4. Stop.
 
-**Self-written critic rounds are not a valid fallback.** The protocol's value comes from independent adversarial pressure. A planner critiquing its own plan demonstrably misses the gaps real Round 2/3 dispatches catch (see `docs/protocol-test-runs/` historical record). If you write your own critique sections in place of dispatched ones, you are producing a different artifact under a misleading label, and downstream Reviewer triage becomes untrustworthy.
+**Self-written critic rounds are not a valid fallback.** The protocol's value comes from independent adversarial pressure. A planner critiquing its own plan demonstrably misses the gaps real critic subagent dispatches catch. If you write your own critique sections in place of dispatched ones, you are producing a different artifact under a misleading label, and downstream Reviewer triage becomes untrustworthy.
 
-If the user (in this same turn or a follow-up) explicitly authorizes a degraded run with the literal token `--allow-no-critic`, you may produce a plan v1 only, labeled `PROTOCOL: one-round-degraded (no-critic, user-authorized)`, with `ROUNDS COMPLETED: 0`. Never label it "three-round" regardless of authorization.
+If the user (in this same turn or a follow-up) explicitly authorizes a degraded run with the literal token `--allow-no-critic`, you may spawn a planner subagent for plan v1 only, label the output `PROTOCOL: one-round-degraded (no-critic, user-authorized)`, with `ROUNDS COMPLETED: 0`. Never label it "three-round" regardless of authorization.
 
-If the tool IS available, proceed to Phase 1.
+If both tools ARE available, proceed to Phase 1.
 
-## Phase 1: Context loading
+## Phase 1: Orchestrator context loading
 
-Do all of this before drafting anything:
+The orchestrator gathers state needed for routing decisions in Phase 2 and to brief the planner subagent in Phase 3. Most file reads happen later inside the planner subagent (which has Read tool access); the orchestrator only needs what it personally uses for Phase 2 reconnaissance and the planner's spawn prompt.
 
-0. **Strip stale state labels.** Fresh planning run — clear any prior pipeline state:
+0. **Mark in-flight + strip stale state labels.** Fresh planning run — clear any prior pipeline state and stake a claim on this issue so concurrent /sprint-plan invocations skip it:
    ```bash
-   gh issue edit $1 --remove-label "planned,ready,needs-operator,abandoned" 2>/dev/null || true
+   gh label create "planning" --color "fbca04" --description "Planner is actively planning this issue" 2>/dev/null || true
+   gh issue edit $1 --remove-label "planned,ready,needs-operator,abandoned" --add-label "planning" 2>/dev/null || true
    ```
 
-1. **Read the issue.** Run `gh issue view $1 --comments`. Note linked issues, dependencies stated in the body, references to other issues by number.
+   The `planning` label is the in-flight marker. It must be stripped on every exit path — Phase 2 abort, Phase 11 success, Phase 11 manual-resume. Sprint-plan's worker loop filters out issues with this label so two windows can't double-process the same work.
 
-2. **Read CLAUDE.md** at the repo root.
+1. **Read the issue.** Run `gh issue view $1 --comments`. Note linked issues, dependencies stated in the body, references to other issues by number. The full body and comments will be passed to the planner.
 
-3. **Discover master plan.** Run:
+2. **Discover master plan.** Run:
    ```bash
    grep -rl "#$1\b" docs/plans/ 2>/dev/null
    ```
-   If any docs/plans/ file references this issue number, read it — that's the workstream master plan. Note what's shipped, what's next, and this issue's relationship to the workstream. If no match, scan docs/plans/ for any active plan whose surface area overlaps with files cited in the issue body and read what's relevant. If no master plan is found, skip and note in the SCOPE ENVELOPE.
+   If any docs/plans/ file references this issue number, note its path — that's the workstream master plan. Pass the path to the planner so the planner can read it directly.
 
-4. **For each linked or referenced issue**, run `gh issue view <number>` to get its current state. Open dependencies are blockers; closed dependencies are precedent.
+3. **Note IK file paths.** Confirm which of these exist:
+   - `docs/modules.md`
+   - `docs/stakes-index.md`
+   - `docs/lessons-by-surface.md`
+   - `docs/operating-principles.md`
 
-5. **For each file mentioned in the issue**, read the current state of that file. Issues frequently cite line numbers from older versions — verify against current main.
+   Pass the existing paths to the planner. Planner reads them on demand. Skip missing files gracefully — note in the SCOPE ENVELOPE which IK file(s) were missing.
 
-6. **Load the institutional knowledge layer.** For each file or directory the issue mentions (and any cross-system surface you would touch):
-   - Look up the owning module in `docs/modules.md`. Note which module(s) the surface belongs to and what the Touches lines say about cross-module dependencies — those are blast-radius candidates the plan must consider.
-   - Check `docs/stakes-index.md` for entries keyed to this file or its directory. Stakes notes name the deploy steps required when this surface changes, RLS sensitivity, blast radius, and the script or manual test that verifies it works.
-   - Check `docs/lessons-by-surface.md` for past failures keyed to this surface. These are documented gotchas — patterns that have broken before and should not be re-introduced.
-   - If `docs/operating-principles.md` exists, scan it for any process/protocol rule that applies to the work shape (multi-session feature, subsystem change, external-API cost, etc.) — these aren't file-keyed but are load-bearing for plan structure.
+4. **Note CLAUDE.md location.** Repo root. Planner reads it for codebase conventions.
 
-   When a stakes note, lesson, or principle is relevant to a decision in the plan, surface it explicitly in the plan body and the evidence trail. Any decision that contradicts an existing stakes note or repeats a documented past failure must explicitly acknowledge the conflict and justify the deviation as a Reviewer-escalation item.
+5. **Create the issue's working folder.** `mkdir -p docs/protocol-test-runs/issue-$1/`
 
-   If any of these files do not exist yet (the IK layer is built incrementally), skip the lookup gracefully — do not abort. Note in the SCOPE ENVELOPE which IK file(s) were missing.
+## Phase 2: Issue feasibility — type and scope reconnaissance
 
-7. **Identify canonical architectural docs that touch this scope** (e.g., anything in `docs/` or `docs/plans/`). Read what's relevant.
-
-## Phase 2: Issue feasibility — type and scope
-
-Two checks. Both fail-closed: if either aborts or the operator declines to proceed, no plan is produced. Both run before any expensive critic round, because the cost of a mis-scoped plan is three rounds of adversarial critique on the wrong target.
+Two checks. Both fail-closed: if either aborts or the operator declines to proceed, no plan is produced. Both run before any expensive subagent dispatch, because the cost of a mis-scoped plan is six SendMessage rounds of adversarial critique on the wrong target.
 
 ### Check 2A — Issue type
 
@@ -135,7 +137,7 @@ If aborting on type, write `ABORTED: <reason>` to the output file. Do not run re
 
 ### Check 2B — Scope reconnaissance
 
-Five cheap probes. Each takes ~30 seconds and ~1k tokens; collectively they prevent the protocol from burning three critic rounds on a mis-scoped plan. Run all five before drafting plan v1.
+The orchestrator runs these probes directly (bash-heavy work, faster in main session than dispatched). Each takes ~30 seconds; collectively they prevent burning three critic rounds on a mis-scoped plan.
 
 1. **Siblings.** Grep for the bug signature / anti-pattern / function shape elsewhere in the repo. For a bug fix, this is the same regex or function name in adjacent files. For an architectural change, this is the same pattern in sibling modules. Output: list of file:line matches, or "no siblings found."
 
@@ -149,6 +151,8 @@ Five cheap probes. Each takes ~30 seconds and ~1k tokens; collectively they prev
 4. **Dependencies.** `gh issue view $1 --json` for blocked-by / related-to labels. `gh issue list --search "<keywords>"` where keywords are the central concepts. Output: list of related issues with state, or "no dependencies."
 
 5. **Scope magnitude.** Classify the issue as trivial if all three are true: (a) the change touches ≤ 2 files, (b) no schema changes, no new API contracts, no reader/writer migration, no cross-system effects, (c) the fix is a remap, rename, or config adjustment with no behavioral delta. Evaluate each criterion explicitly. Output: `trivial` or `non-trivial`.
+
+Write all five findings to `docs/protocol-test-runs/issue-$1/recon.md`.
 
 ### Routing rules
 
@@ -164,38 +168,83 @@ Five cheap probes. Each takes ~30 seconds and ~1k tokens; collectively they prev
 
 **Consolidate (b) questions.** If multiple checks surface (b)-class findings, send the operator ONE message that names every finding at once. Do not ask four sequential questions. Wait for the operator's answer; do not proceed to plan v1 with assumptions.
 
-**Auto-expansion is forbidden.** If reconnaissance finds siblings or conflicts, the plan does NOT silently widen to cover them. Routing is the operator's call. Even when the operator says "bundle the sibling," update the scope envelope explicitly with the expanded surface before drafting v1 — no implicit widening.
+**Auto-expansion is forbidden.** If reconnaissance finds siblings or conflicts, the plan does NOT silently widen to cover them. Routing is the operator's call. Even when the operator says "bundle the sibling," update the scope envelope explicitly with the expanded surface before the planner spawn — no implicit widening.
 
 ### Output
 
-Whatever the outcome, write a SCOPE ENVELOPE section to the plan doc (see Phase 10 output template). Empty findings are valuable signal for the Reviewer — they prove reconnaissance ran and came back clean, rather than not running.
+Whatever the outcome, write a SCOPE ENVELOPE section to `docs/protocol-test-runs/issue-$1/recon.md`. Empty findings are valuable signal for the Reviewer — they prove reconnaissance ran and came back clean.
 
-## Phase 3: Draft plan v1
+## Phase 3: Spawn the planner subagent
 
-Produce **plan v1** with these sections:
-
-- **Scope** — One paragraph. What this piece does, what it does not do.
-- **Approach** — The technical plan. What changes, in what order, in what files.
-- **Architectural decisions** — Each one stated as: decision, options considered, choice, reversibility, rationale.
-- **Out of scope** — Explicitly named.
-- **Manual testing steps** — Specific actions, not "verify it works."
-- **Git commits** — Logical commit boundaries.
-- **Cross-system effects** — What other parts of the app this plan touches or affects, even indirectly.
-
-Save plan v1 verbatim in the output file.
-
-## Phase 4: Critic Round 1 — "What's wrong with this plan?"
-
-Dispatch a subagent with the `Task` tool, specifying `model: opus`. Give it:
-
-- Plan v1 (full text)
-- The issue body
-- The list of files you read in Phase 1
-- The Scope Envelope from Phase 2B (so the critic does not re-flag siblings, conflicts, or dependencies that the operator has already routed)
-- This instruction:
+Dispatch via the `Agent` tool with `model: opus` and `name: planner-$1`. The first-turn prompt loads everything the planner needs for the lifetime of this plan.
 
 ```
-You are a Critic. Your job: find what's wrong with this plan.
+You are the Planner. You produce plans v1 through v4 across multiple SendMessage continuations.
+
+This first turn produces plan v1 only. After producing v1, end with the literal phrase
+"Plan v1 complete. Awaiting Round 1 critique." and stop. Do not anticipate critique.
+
+Issue: #$1
+Title: [issue title]
+Body:
+[full issue body]
+
+Comments:
+[verbatim comments thread, if any]
+
+Working folder: docs/protocol-test-runs/issue-$1/
+
+IK files (read on demand using your Read tool — they may not all exist):
+- docs/modules.md (module map)
+- docs/stakes-index.md (high-stakes surfaces + verification)
+- docs/lessons-by-surface.md (incident lessons)
+- docs/operating-principles.md (workflow constraints)
+- CLAUDE.md (codebase conventions, deploy process)
+
+Master plan (if any): [path from Phase 1, or "none found"]
+
+Scope Envelope (from Phase 2B reconnaissance):
+[paste recon.md contents]
+
+[STANDING RULES — paste verbatim from the "Standing rules" section of this skill: definition-before-decision, reversibility, single source of truth, no fake answers, no silent protocol degradation, commit-or-escalate with the banned-phrase list]
+
+Plan v1 sections required:
+- Scope — One paragraph. What this piece does, what it does not do.
+- Approach — The technical plan. What changes, in what order, in what files.
+- Architectural decisions — Each one stated as: decision, options considered, choice, reversibility, rationale.
+- Out of scope — Explicitly named.
+- Manual testing steps — Specific actions, not "verify it works."
+- Git commits — Logical commit boundaries.
+- Cross-system effects — What other parts of the app this plan touches or affects.
+
+Read the IK files relevant to surfaces this plan touches. Surface stakes notes,
+lessons, and operating principles in the plan body and the evidence trail when
+relevant. A decision that contradicts an existing stakes note or repeats a
+documented past failure must explicitly acknowledge the conflict and justify
+the deviation as a Reviewer-escalation item.
+
+Produce plan v1 now.
+```
+
+When the planner returns, capture its `agentId`. Save plan v1 verbatim to `docs/protocol-test-runs/issue-$1/plan-v1.md`.
+
+Record `planner_agent_id` in the orchestrator's working state.
+
+## Phase 4: Spawn the critic subagent — Round 1
+
+Dispatch via the `Agent` tool with `model: opus` and `name: critic-$1`. Pass the full Round 1 prompt:
+
+```
+You are the Critic. You produce critiques across three rounds, each with a different question.
+You persist across all three rounds via SendMessage; retain context.
+
+Round 1 question: What's wrong with this plan?
+
+Plan v1:
+[paste plan-v1.md verbatim]
+
+Scope Envelope (so you don't re-flag siblings/conflicts the operator already routed):
+[paste recon.md verbatim]
 
 The Scope Envelope above documents what was deliberately included or excluded
 during reconnaissance. Do not critique the plan for failing to address findings
@@ -203,129 +252,200 @@ the envelope routed out of scope. Do critique the plan if its scope contradicts
 the envelope (e.g., envelope says "sibling X is out of scope" but the plan
 touches X anyway).
 
-Highest-yield failure modes to surface (these are the ones critics consistently miss without prompting — the others fall out of "find what's wrong" naturally):
+Highest-yield failure modes to surface (these are the ones critics consistently
+miss without prompting — the others fall out of "find what's wrong" naturally):
 - Vague language ("ensure," "verify," "handle appropriately")
 - Decisions that look small but have large blast radius
 - Underspecified error/failure handling
 
-Empty critique is a valid output. Do not pad. Every critique must cite a specific section of the plan or issue.
+Empty critique is a valid output. Do not pad. Every critique must cite a specific
+section of the plan or issue.
 
-Hedge ban: every critique is committed pushback or no critique at all. If you can articulate the concern as a flaw with a citation, state it forcefully. If you can't, omit it. Banned: "minor concern," "worth noting," "consider whether," "might want to," "could potentially."
+Hedge ban: every critique is committed pushback or no critique at all. If you can
+articulate the concern as a flaw with a citation, state it forcefully. If you can't,
+omit it. Banned: "minor concern," "worth noting," "consider whether," "might want to,"
+"could potentially."
 
 Output format:
 - Critique 1: [issue] — [evidence]
 - Critique 2: [issue] — [evidence]
 - ...
 - (or: "No substantive issues found")
+
+End your turn with "Awaiting Round 2." and stop.
 ```
 
-Save the Round 1 critique to `docs/protocol-test-runs/issue-$1-r1.md`.
+When the critic returns, capture its `agentId`. Save the critique to `docs/protocol-test-runs/issue-$1/critique-1.md`.
 
-## Phase 5: Revise plan based on Round 1
+Record `critic_agent_id` in the orchestrator's working state.
 
-Read the critique. For each item:
-- If valid → revise the plan to address it
-- If invalid → note your reasoning, do not change the plan
-
-Produce **plan v2**. Save to sidecar file `docs/protocol-test-runs/issue-$1-v2.md` (and Round 1 critique to `issue-$1-r1.md`, plan v1 to `issue-$1-v1.md` if not yet saved). The main output file gets the evolution summary in Phase 10, not the verbatim drafts.
-
-## Phase 6: Critic Round 2 — "What evidence grounds this revised plan?"
-
-Dispatch a subagent with the `Task` tool. Give it:
-
-- Plan v2 (full text)
-- Round 1 critique (so the critic can see what the planner was responding to and audit the revision honestly, not re-litigate R1 items)
-- The issue body
-- The list of files you read in Phase 1
-- The Scope Envelope from Phase 2B
-- This instruction:
+## Phase 5: SendMessage planner — produce v2
 
 ```
-You are a Critic. The plan v2 above is a revision of an earlier draft after Round 1 critique. Round 1 critique is included so you can see the surface area the planner was working against — not so you can re-litigate it.
+SendMessage({
+  to: planner_agent_id,
+  message: "Critique 1:
 
-Your job: identify what evidence grounds the architectural decisions in plan v2.
+  [paste critique-1.md verbatim]
 
-For every architectural decision, determine:
-- Grounded — cites a specific file:line, doc, issue, precedent, or scope envelope routing
-- Assumption — explicit, with stated rationale
-- UNGROUNDED — claim presented as fact without support
+  Read the critique. For each item: if valid → revise the plan to address it.
+  If invalid → note your reasoning, do not change the plan.
 
-Do not accept vague groundings ("based on the system architecture") — demand specifics.
-Empty list is valid output if all decisions are well-grounded.
-
-Hedge ban: every audit verdict is committed (Grounded, Assumption, or UNGROUNDED). Do not soften UNGROUNDED into "weakly grounded" or "could use more support." Either it's grounded with a specific citation, it's an explicit assumption with rationale, or it's UNGROUNDED.
-
-Output format:
-- Decision X — Grounded: [specific source]
-- Decision Y — Assumption: [stated rationale, accept]
-- Decision Z — UNGROUNDED: [what's missing]
-- ...
+  Produce plan v2. End with 'Plan v2 complete. Awaiting Round 2 critique.' and stop."
+})
 ```
 
-Save the Round 2 critique to `docs/protocol-test-runs/issue-$1-r2.md`.
+The planner resumes from transcript with full context. Wait for the task notification before proceeding.
 
-## Phase 7: Revise plan based on Round 2
+Save plan v2 verbatim to `docs/protocol-test-runs/issue-$1/plan-v2.md`.
 
-For each ungrounded decision:
-- Either find evidence and add it to the plan, or
-- Convert it to a stated assumption with explicit rationale, or
-- If you can't ground it and can't justify it as an assumption, mark it explicitly in the evidence trail as "UNGROUNDED — Reviewer escalation"
-
-Produce **plan v3** with an explicit evidence trail. Save to sidecar `docs/protocol-test-runs/issue-$1-v3.md` (and Round 2 critique to `issue-$1-r2.md`).
-
-## Phase 8: Critic Round 3 — "What would we need to learn to know this is the right approach?"
-
-Dispatch a subagent with the `Task` tool, specifying `model: opus`. Give it:
-
-- Plan v3 (full text)
-- Round 1 critique (so the critic sees how the plan evolved without re-litigating)
-- Round 2 critique
-- The issue body
-- The Scope Envelope from Phase 2B
-- This instruction:
+## Phase 6: SendMessage critic — Round 2 evidence audit
 
 ```
-You are a Critic. The plan has evolved through two prior critique rounds (included above for context, not for re-litigation).
+SendMessage({
+  to: critic_agent_id,
+  message: "Plan v2 above is a revision of an earlier draft after Round 1 critique.
+  Round 1 critique is included so you can see the surface area the planner was working
+  against — not so you can re-litigate it.
 
-Your job: answer this question.
+  Plan v2:
+  [paste plan-v2.md verbatim]
 
-What would we need to learn to know this is the right approach — not just an okay one?
+  Round 2 question: identify what evidence grounds the architectural decisions in plan v2.
 
-A "needed-to-learn" item is a question whose answer would change the plan, AND which can't be resolved by reading the codebase or available docs. These are external unknowns: things only the operator, the user, or the world outside this repo can answer.
+  For every architectural decision, determine:
+  - Grounded — cites a specific file:line, doc, issue, precedent, or scope envelope routing
+  - Assumption — explicit, with stated rationale
+  - UNGROUNDED — claim presented as fact without support
 
-Empty output is valid. Do not pad.
+  Do not accept vague groundings ('based on the system architecture') — demand specifics.
+  Empty list is valid output if all decisions are well-grounded.
 
-Hedge ban: every item is a concrete question. No "potential concern," no "may want to consider," no "worth thinking about." If you can't state it concretely, omit it.
+  Hedge ban: every audit verdict is committed (Grounded, Assumption, or UNGROUNDED). Do not
+  soften UNGROUNDED into 'weakly grounded' or 'could use more support.' Either it's grounded
+  with a specific citation, it's an explicit assumption with rationale, or it's UNGROUNDED.
 
-Output format:
-- Question: [the question]
-  Why it matters: [how the plan would change if the answer differed]
-- ...
-(or: "None")
+  Output format:
+  - Decision X — Grounded: [specific source]
+  - Decision Y — Assumption: [stated rationale, accept]
+  - Decision Z — UNGROUNDED: [what's missing]
+  - ...
+
+  End with 'Awaiting Round 3.' and stop."
+})
 ```
 
-Save the Round 3 critique to `docs/protocol-test-runs/issue-$1-r3.md`.
+Save the critique to `docs/protocol-test-runs/issue-$1/critique-2.md`.
 
-## Phase 9: Resolve and finalize
+## Phase 7: SendMessage planner — produce v3
 
-For each external unknown Round 3 surfaced:
-- If you can answer it from the codebase or docs → answer it, cite the source, integrate the answer into the plan (which means it wasn't truly external — Round 3 misclassified, that's fine)
-- If you cannot answer it → mark it explicitly in the evidence trail as "UNRESOLVED — Reviewer escalation"
+```
+SendMessage({
+  to: planner_agent_id,
+  message: "Critique 2:
 
-If Round 3 surfaced an unknown that suggests the underlying approach is wrong (not just incomplete), revise more substantially — don't paper over it.
+  [paste critique-2.md verbatim]
 
-Produce **plan v4 (final)**. Save verbatim.
+  For each ungrounded decision:
+  - Either find evidence and add it to the plan, or
+  - Convert it to a stated assumption with explicit rationale, or
+  - If you can't ground it and can't justify it as an assumption, mark it explicitly in
+    the evidence trail as 'UNGROUNDED — Reviewer escalation'
 
-## Phase 10: Write output
+  Produce plan v3 with an explicit evidence trail. End with 'Plan v3 complete. Awaiting
+  Round 3 critique.' and stop."
+})
+```
 
-Write the test/production output to the location Claude Code determines is appropriate (typically `docs/protocol-test-runs/issue-$1-three-round.md` for test runs, or wherever the project convention places plan files for production).
+Save plan v3 verbatim to `docs/protocol-test-runs/issue-$1/plan-v3.md`.
+
+## Phase 8: SendMessage critic — Round 3 needed-to-learn
+
+```
+SendMessage({
+  to: critic_agent_id,
+  message: "The plan has evolved through two prior critique rounds (above for context,
+  not for re-litigation).
+
+  Plan v3:
+  [paste plan-v3.md verbatim]
+
+  Round 3 question: What would we need to learn to know this is the right approach —
+  not just an okay one?
+
+  A 'needed-to-learn' item is a question whose answer would change the plan, AND which
+  can't be resolved by reading the codebase or available docs. These are external
+  unknowns: things only the operator, the user, or the world outside this repo can answer.
+
+  Empty output is valid. Do not pad.
+
+  Hedge ban: every item is a concrete question. No 'potential concern,' no 'may want to
+  consider,' no 'worth thinking about.' If you can't state it concretely, omit it.
+
+  Output format:
+  - Question: [the question]
+    Why it matters: [how the plan would change if the answer differed]
+  - ...
+  (or: 'None')
+
+  End with 'Critic rounds complete.' and stop."
+})
+```
+
+Save the critique to `docs/protocol-test-runs/issue-$1/critique-3.md`.
+
+## Phase 9: SendMessage planner — synthesize v4 (final)
+
+```
+SendMessage({
+  to: planner_agent_id,
+  message: "Critique 3:
+
+  [paste critique-3.md verbatim]
+
+  All three critic rounds are complete. Produce plan v4 — the final, coherent plan
+  integrating all three critiques.
+
+  For each external unknown Round 3 surfaced:
+  - If you can answer it from the codebase or docs → answer it, cite the source,
+    integrate the answer into the plan (which means it wasn't truly external —
+    Round 3 misclassified, that's fine)
+  - If you cannot answer it → mark it explicitly in the evidence trail as
+    'UNRESOLVED — Reviewer escalation'
+
+  If Round 3 surfaced an unknown that suggests the underlying approach is wrong (not
+  just incomplete), revise more substantially — don't paper over it.
+
+  In addition to the plan v4 body, produce:
+  - A 'Plan evolution summary' section: one paragraph per version (v1→v2 driven by R1,
+    v2→v3 driven by R2, v3→v4 driven by R3). Reviewer reads this to assess plan quality
+    without re-reading every draft.
+  - An 'EVIDENCE TRAIL' section: every architectural decision in v4, with grounding
+    (Grounded / Assumption / UNGROUNDED).
+  - A 'DEPENDENCIES' section: blocked by, unblocks, touches.
+  - A 'CROSS-SYSTEM EFFECTS' section: what other parts of the app this affects.
+  - An 'ISSUE MANAGEMENT' section per the template provided in this prompt below.
+  - A 'Close-out: Debrief' section template per the template provided in this prompt below.
+
+  [Paste the ISSUE MANAGEMENT template — see Phase 10 below]
+  [Paste the Close-out: Debrief template — see Phase 10 below]
+
+  End with 'Plan v4 complete.' and stop."
+})
+```
+
+Save plan v4 verbatim to `docs/protocol-test-runs/issue-$1/plan-v4.md`.
+
+## Phase 10: Write canonical output file
+
+The canonical file at `docs/protocol-test-runs/issue-$1-three-round.md` is what the Reviewer reads by default and what downstream skills (sprint-walkthrough, sprint-implement) reference. It contains plan v4's full text plus orchestrator-managed metadata.
 
 Format:
 
 ```
 ---
 issue: $1
-protocol: three-round
+protocol: three-round (v4 architecture: orchestrator-mediated)
 ---
 
 ==========================================
@@ -334,89 +454,66 @@ PLAN: Issue #$1 — [title]
 
 PROTOCOL: three-round
 ROUNDS COMPLETED: 1, 2, 3
+ARCHITECTURE: orchestrator-mediated (persistent planner + persistent critic via SendMessage)
 ISSUE TYPE: atomic implementation
 
 ---
 
 ## SCOPE ENVELOPE
 
-Phase 2B reconnaissance output. Empty findings are valuable — they prove reconnaissance ran.
-
-- **Siblings:** [list with file:line, or "none found"]
-- **Conflicts:** [in-flight plans / open PRs, or "none found"]
-- **Staleness:** [clean / soft: <evidence> / HARD: <evidence>]
-- **Dependencies:** [issue numbers with state, or "none found"]
-- **Scope magnitude:** [trivial / non-trivial — (a) files touched: N, (b) schema/contract/cross-system: yes/no, (c) behavioral delta: yes/no]
-- **Operator routing:** [paste verbatim each (b)-class question and the operator's answer; or "no operator interrupt — all checks clean"]
+[paste recon.md verbatim — Phase 2B reconnaissance output]
 
 ---
 
-## Plan evolution summary
-
-One paragraph per version. What changed and why. The Reviewer reads this to assess plan quality without re-reading every draft. If the Reviewer wants to dispute a specific revision, intermediates are saved as sidecar files (see below).
-
-- **v1 → v2 (R1 driven):** [what R1 caught, what changed in v2, in 2-3 sentences]
-- **v2 → v3 (R2 driven):** [what R2 caught about evidence/grounding, what changed in v3]
-- **v3 → v4 (R3 driven):** [what R3 surfaced as external unknowns, what got resolved vs escalated]
-
-Sidecar files (saved alongside this output, not embedded — Reviewer fetches if needed):
-- `docs/protocol-test-runs/issue-$1-v1.md` — plan v1
-- `docs/protocol-test-runs/issue-$1-v2.md` — plan v2
-- `docs/protocol-test-runs/issue-$1-v3.md` — plan v3
-- `docs/protocol-test-runs/issue-$1-r1.md` — Round 1 critique
-- `docs/protocol-test-runs/issue-$1-r2.md` — Round 2 critique
-- `docs/protocol-test-runs/issue-$1-r3.md` — Round 3 critique
+[paste plan-v4.md verbatim — includes Plan evolution summary, plan v4 body, EVIDENCE TRAIL,
+DEPENDENCIES, CROSS-SYSTEM EFFECTS, ISSUE MANAGEMENT, Close-out: Debrief sections all
+produced by the planner in Phase 9]
 
 ---
-
-## Plan v4 (final)
-[full text of plan v4]
-
----
-
-## EVIDENCE TRAIL
-
-For Reviewer use. Every architectural decision in plan v4, with grounding.
-
-- Decision 1: [statement] — Grounded in [source]
-- Decision 2: [statement] — Grounded in [source]
-- Decision 3: [statement] — ASSUMPTION: [rationale]
-- Decision 4: [statement] — UNGROUNDED: Reviewer escalation
-- ...
-
-## DEPENDENCIES
-
-- Blocked by: [issue numbers still open that this needs]
-- Unblocks: [issue numbers waiting on this]
-- Touches: [other workstreams or master plans this affects]
-
-## CROSS-SYSTEM EFFECTS
-
-- [system 1]: [how this plan affects it]
-- [system 2]: [how this plan affects it]
-- ...
 
 ## PROTOCOL NOTES
 
-- Total subagent dispatches: 3
-- Round 1 critiques surfaced: [count]
-- Round 1 critiques addressed: [count]
-- Round 2 ungrounded decisions found: [count]
+- Architecture: orchestrator-mediated (this protocol's v4 architecture)
+- Subagent dispatches: 1 planner spawn + 3 planner SendMessages + 1 critic spawn + 2 critic SendMessages + 1 reviewer spawn = 8 total
+- Round 1 critiques surfaced: [count from critique-1.md]
+- Round 1 critiques addressed: [count, parsed from plan-v2.md evolution summary]
+- Round 2 ungrounded decisions found: [count from critique-2.md]
 - Round 2 resolutions: [count] with evidence / [count] converted to assumption / [count] escalated to Reviewer
-- Round 3 external unknowns surfaced: [count]
-- Round 3 items resolved by Planner: [count]
-- Round 3 items escalated to Reviewer: [count]
+- Round 3 external unknowns surfaced: [count from critique-3.md]
+- Round 3 items resolved by Planner: [count, parsed from plan-v4.md evidence trail]
+- Round 3 items escalated to Reviewer: [count, "UNRESOLVED — Reviewer escalation" entries in plan-v4.md]
 
 ---
 
+## SIDECAR FILES
+
+Available at `docs/protocol-test-runs/issue-$1/`:
+- `recon.md` — Phase 2B reconnaissance findings
+- `plan-v1.md` — first draft from planner
+- `critique-1.md` — Round 1 critique
+- `plan-v2.md` — second draft
+- `critique-2.md` — Round 2 critique (evidence audit)
+- `plan-v3.md` — third draft with evidence trail
+- `critique-3.md` — Round 3 critique (needed-to-learn)
+- `plan-v4.md` — final synthesis (this file's main content)
+
+The Reviewer reads this canonical file by default. Sidecars are available if the Reviewer
+wants to dig into trajectory or dispute a specific revision.
+```
+
+### ISSUE MANAGEMENT template (passed to planner in Phase 9 prompt)
+
+The planner produces this section in plan-v4.md. Template the planner fills in:
+
+```
 ## ISSUE MANAGEMENT
 
-Read this before implementation. The implementer (whether human, autonomous run, or follow-on Claude session) is contracted to follow these handoffs. The Planner populates each subsection with specifics — not just the template.
+Read this before implementation. The implementer is contracted to follow these handoffs.
 
 ### Out-of-scope items to file as tracking issues
 
-For each item in the plan's "Out of scope" section, the Planner classifies as either:
-- **Will-do-later** → file a tracking issue **before this plan's PR merges**.
+For each item in the plan's "Out of scope" section, classify as either:
+- **Will-do-later** → file a tracking issue **before this plan's commit lands**.
 - **Won't-do** → no issue (e.g., "not migrating because data is throwaway").
 
 The Planner enumerates the will-do-later items here, with concrete metadata:
@@ -433,10 +530,10 @@ If no out-of-scope items become tracking issues, state explicitly: **"No trackin
 
 If the implementer discovers work that wasn't in the plan:
 - Adjacent bugs (sibling code, same pattern, different module)
-- Sub-populations the plan's filter excludes (e.g., "the fix targets specific modules but discovery surfaced foundation modules with the same symptom")
+- Sub-populations the plan's filter excludes
 - Workarounds applied during a fix that need permanent attention
 
-→ File a new GitHub issue **before merging this plan's PR**.
+→ File a new GitHub issue **before merging this plan's commit**.
 → Title in outcome form.
 → Labels: priority + category. Unlabeled issues are invisible to triage.
 → Body: "Discovered during implementation of #$1; plan at [plan-path]."
@@ -453,7 +550,7 @@ Code comments and commit messages do not surface in `gh issue list`. The codebas
 
 ### Issue autoclose (push-to-main workflow)
 
-This codebase ships via direct push to `main`, not via PRs. The `Closes #$1` keyword must appear on its own line in the **commit message body**, so GitHub auto-closes the linked issue when the commit lands on `main`.
+This codebase ships via direct push to `main`. The `Closes #$1` keyword must appear on its own line in the **commit message body**, so GitHub auto-closes the linked issue when the commit lands on `main`.
 
 ```
 fix(scope): one-line subject
@@ -461,13 +558,13 @@ fix(scope): one-line subject
 Closes #$1
 ```
 
-Subject-line `(#N)` parens are a PR-number convention only — they do NOT trigger auto-close. Verify by previewing `git log -1 HEAD` before pushing; if `Closes #N` isn't on its own line in the body, fix the message before push.
+Subject-line `(#N)` parens do NOT trigger auto-close. Verify by previewing `git log -1 HEAD` before pushing.
 
-Do not create a PR unless explicitly authorized. Direct push to `main` is the convention. Issues without the autoclose keyword stay open after the fix ships, accumulating false-positive backlog (the planning pipeline burned 3 of 9 plan slots on already-shipped work in the 2026-W19 sprint due to this exact failure mode).
+Do not create a PR unless explicitly authorized. Direct push to `main` is the convention.
 
 ### Master plan registration
 
-If this plan affects a workstream with a master plan (any `docs/plans/*.md` master file), the implementer adds a one-line entry: date, commit hash, what shipped. Without this entry, the next session has no awareness this work landed.
+If this plan affects a workstream with a master plan (any `docs/plans/*.md` master file), the implementer adds a one-line entry: date, commit hash, what shipped.
 
 The Planner identifies which master plan(s) (if any) this plan affects:
 - [List master plan files here, or "No master plan affected."]
@@ -481,26 +578,27 @@ Before marking the plan implemented:
 - [ ] Commit message body contains `Closes #$1` on its own line (verified via `git log -1 HEAD`)
 - [ ] Master plan updated if applicable
 - [ ] Debrief written (see Close-out: Debrief below)
+```
 
----
+### Close-out: Debrief template (passed to planner in Phase 9 prompt)
 
+```
 ## Close-out: Debrief
 
-After implementation is complete, create `docs/debriefs/issue-$1.md`. Fill in every section —
-do not leave template placeholders. Skip this step only if the plan was ABORTED.
+After implementation is complete, create `docs/debriefs/issue-$1.md`. Fill in every section.
+Skip this step only if the plan was ABORTED.
 
     ---
     issue: $1
     date: [today's date, ISO-8601]
-    protocol: three-round
+    protocol: three-round (v4 architecture)
     ---
 
     ## Scope delta
     What was added, cut, or changed vs. the original plan?
 
     ## Discoveries
-    What did execution reveal that the plan didn't know? Missing dependencies,
-    undocumented constraints, things figured out mid-build.
+    What did execution reveal that the plan didn't know?
 
     ## Decisions made during execution
     For each non-trivial decision:
@@ -511,10 +609,7 @@ do not leave template placeholders. Skip this step only if the plan was ABORTED.
     Bugs, fragile patterns, things that failed before they worked.
 
     ## Issues filed during implementation
-    Every GitHub issue created during this work, with one-line context:
-    - #N: [title] — filed because [out-of-scope sibling | discovered-during-impl | deferred-in-code gate]
-    - #N: ...
-    (Or: "None — plan was atomic, no follow-up issues surfaced.")
+    Every GitHub issue created during this work, with one-line context.
 
     ## Plan quality
     Did the plan help or hinder? What would have made it better?
@@ -522,20 +617,38 @@ do not leave template placeholders. Skip this step only if the plan was ABORTED.
 
 ## Phase 11: Link plan back to GitHub issue
 
-**If plan was ABORTED (Phase 2):** Post an abort trail comment so the issue isn't re-triaged blind:
+The abort path differentiates by source. Phase 0 aborts are state corruption (issue carries `deferred` or `scope:abort` — those labels are correct, leave them). Phase 2 aborts are content shape (diagnostic, vague, blocked-on-prereq, hard staleness) — the operator needs to decide what to do, route via `needs-operator` so `/sprint-walkthrough` surfaces it.
+
+**If plan was ABORTED in Phase 0:** State labels are correct. Just post a trail comment so the issue isn't re-triaged blind:
 ```bash
 gh issue comment $1 --body "**Planning attempted — aborted.**
 
-Reason: [reason from Phase 2 abort]"
+Reason: [reason from Phase 0 abort]"
 ```
-No label added. Skip Phase 12.
+No label change. Skip Phase 12.
+
+**If plan was ABORTED in Phase 2** (issue type or scope reconnaissance abort): Apply `needs-operator` so `/sprint-plan` skips this issue on subsequent runs and `/sprint-walkthrough` catches it for operator decision. Do NOT strip `scoped` — the scope verdict is still valid; what's broken is the issue's plannability, not its scope.
+
+```bash
+gh label create "needs-operator" --color "e4e669" --description "Reviewer or planner: needs judgment call" 2>/dev/null || true
+gh issue edit $1 --remove-label "planning" --add-label "needs-operator"
+gh issue comment $1 --body "**Planning attempted — aborted in Phase 2.**
+
+Reason: [reason from Phase 2 abort]
+
+Routed to \`needs-operator\` for /sprint-walkthrough. Operator decides: close-as-dup / defer / fix-body-and-rescope."
+```
+
+The ABORTED trail file at `docs/protocol-test-runs/issue-$1/plan-v1.md` (or wherever the abort wrote it) is the durable record `/sprint-walkthrough` reads to render the planner-aborted shape. Skip Phase 12.
 
 **If plan completed normally:**
 ```bash
-gh issue edit $1 --remove-label "planned,ready,needs-operator,abandoned" 2>/dev/null || true
+gh issue edit $1 --remove-label "scoped,planning,planned,ready,needs-operator,abandoned" 2>/dev/null || true
 gh label create "planned" --color "0075ca" --description "Planning protocol complete" 2>/dev/null || true
 gh issue edit $1 --add-label "planned"
 gh issue comment $1 --body "**Planning protocol complete.** Plan artifact: \`docs/protocol-test-runs/issue-$1-three-round.md\`
+
+Sidecars in \`docs/protocol-test-runs/issue-$1/\` for trajectory inspection.
 
 Reviewer running now."
 ```
@@ -544,11 +657,11 @@ Reviewer running now."
 
 Skip if plan was ABORTED.
 
-Dispatch the reviewer as a subagent using the Agent tool. Pass:
-- `model: opus` — Reviewer judgment is load-bearing (verdict survives adversarial pass, decides what reaches {{OPERATOR}}). Pin Opus regardless of session model. If a model-cost-mode override at invocation time explicitly says otherwise, follow that — but the default for this dispatch is Opus, not the session inheritance.
-- The plan file path produced in Phase 10
+Dispatch the reviewer as a fresh one-shot subagent using the Agent tool. Pass:
+- `model: opus` — Reviewer judgment is load-bearing (verdict survives adversarial pass, decides what reaches {{OPERATOR}}). Pin Opus regardless of session model.
+- The plan file path: `docs/protocol-test-runs/issue-$1-three-round.md`
 - The issue number $1 (explicit — do not rely on parsing)
-- This instruction: "You are the Reviewer. Run the full review-plans protocol on the plan file at [path]. Issue number for GitHub write-back is $1."
+- This instruction: "You are the Reviewer. Run the full review-plans protocol on the plan file at `docs/protocol-test-runs/issue-$1-three-round.md`. Issue number for GitHub write-back is $1. Sidecars are available at `docs/protocol-test-runs/issue-$1/` if you want to dig into trajectory beyond v4."
 
 **If the Agent dispatch fails or the subagent errors:**
 ```bash
@@ -557,20 +670,19 @@ Run \`/review-plans docs/protocol-test-runs/issue-$1-three-round.md $1\` manuall
 ```
 Leave the `planned` label in place — it correctly signals plan exists, review incomplete. Do not re-attempt.
 
-**If the subagent succeeds:** Relay the reviewer's verdict (READY / NEEDS MIKE / ABANDON + key items) to the user in one short paragraph.
+**If the subagent succeeds:** Relay the reviewer's verdict (READY / NEEDS {{OPERATOR}} / ABANDON + key items) to the user in one short paragraph.
 
-## Reminders
+## Phase 13: Cleanup
 
-- Save plan v1, v2, v3 and the three critique outputs to sidecar files (`docs/protocol-test-runs/issue-$1-v{1,2,3}.md` and `-r{1,2,3}.md`). The main output file gets the evolution summary plus plan v4 verbatim only. The Reviewer reads the main file by default and fetches sidecars only on dispute.
+Subagents (planner-$1 and critic-$1) are done. Their `agentId`s are abandoned — they idle out and get GC'd. No active cleanup needed; do not SendMessage them again.
 
-- Do not produce a NEEDS HUMAN INPUT section. The Reviewer determines what needs {{OPERATOR}}, not the Planner. Your job is to surface constraints; the Reviewer's job is to triage.
+## Standing notes
 
-- Do not produce a dispatch-ready prompt. The Reviewer or {{OPERATOR}} handles dispatch separately.
-
-- If Round 3 surfaces nothing — empty list — that's a positive signal. It means the plan has reached the constraint density where the answer is determined. Do not pad to fill space.
-
-- If the issue is too ambiguous to plan against (Phase 2 abort), say so and stop. Don't produce a plan that's mostly assumptions.
-
-- Include the ISSUE MANAGEMENT section in every non-aborted plan output. Populate the out-of-scope-to-file list and master-plan list with specifics — not template placeholders. The implementer reads this section to know what tracking issues to file before merging the PR. Empty subsections are valid (state "No tracking issues to file" or "No master plan affected"); template boilerplate left in place is not.
-
-- Include the Close-out: Debrief section in every non-aborted plan output. Do not omit it.
+- **Subagent IDs are the durable handle, not names.** Once an agent returns idle, its name slot is freed; re-addressing must use the agent ID. The orchestrator records both planner_agent_id and critic_agent_id in working state and uses IDs for all SendMessage calls after the initial spawn.
+- **Async resumes.** SendMessage to an idle agent kicks off background processing and returns a notification later. Wait for each notification before sending the next message; do not poll. Sequential by nature within a plan.
+- **Disk is the source of truth.** Subagent context is a working-memory optimization. If a subagent dies mid-flight, re-spawn with a recovery prompt that replays state from disk: "Plans v1 through v_K and critiques 1 through K are at <paths>. You were producing v_{K+1}." Cost: lose conversational continuity but state is preserved.
+- **No silent protocol degradation.** If `SendMessage` fails for any round, the orchestrator does NOT self-write the missing critic round. Either retry (re-spawn with replay) or abort with `PROTOCOL FAILURE`. Self-written critic rounds violate the protocol's name and produce an artifact under a misleading label.
+- **The orchestrator does not write plan content.** Every word of plan v1-v4 comes from the planner subagent. The orchestrator's job is dispatch, file I/O, and recovery. If you find yourself drafting plan prose in main session, stop — that's the planner's job.
+- **No NEEDS HUMAN INPUT section in plan v4.** The Reviewer determines what needs {{OPERATOR}}, not the Planner. The Planner surfaces constraints; the Reviewer triages.
+- **No dispatch-ready prompt in plan v4.** The Reviewer or {{OPERATOR}} handles dispatch separately.
+- **Empty Round 3 is positive signal.** Means the plan reached constraint density where the answer is determined. Do not pad to fill space.

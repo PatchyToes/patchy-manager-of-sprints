@@ -1,5 +1,5 @@
 ---
-description: Reviewer session. Reads completed plan files from the Planner and produces a triaged list (ready / needs human / abandon) for {{OPERATOR}}. Includes adversarial pass to filter over-cautious escalations. (Requires: at least one plan artifact at docs/protocol-test-runs/issue-N-*.md — auto-invoked by /plan-issue-* by default.)
+description: Reviewer session. Reads completed plan files from the Planner and produces a triaged list (ready / needs operator / abandon) for {{OPERATOR}}. Includes adversarial pass to filter over-cautious escalations. Reads the canonical plan file (`docs/protocol-test-runs/issue-N-{three,one}-round.md`) by default; sidecar files at `docs/protocol-test-runs/issue-N/` (plan-v1..v4, critique-1..3) are available for trajectory inspection if the canonical file's evolution summary is insufficient. (Requires: at least one plan artifact — auto-invoked by /plan-issue-* by default.)
 argument-hint: <plan_file_or_directory> [issue_number]
 ---
 
@@ -253,7 +253,7 @@ gh label create "abandoned"      --color "b60205" --description "Reviewer: re-pl
 
 READY:
 ```bash
-gh issue edit N --remove-label "planned,ready,needs-operator,abandoned" 2>/dev/null || true
+gh issue edit N --remove-label "scoped,planned,ready,needs-operator,abandoned" 2>/dev/null || true
 gh issue edit N --add-label "ready"
 gh issue comment N --body "**Review complete. Verdict: READY**
 
@@ -262,7 +262,7 @@ Plan is grounded and dispatch-ready. No escalations remaining."
 
 NEEDS {{OPERATOR}}:
 ```bash
-gh issue edit N --remove-label "planned,ready,needs-operator,abandoned" 2>/dev/null || true
+gh issue edit N --remove-label "scoped,planned,ready,needs-operator,abandoned" 2>/dev/null || true
 gh issue edit N --add-label "needs-operator"
 gh issue comment N --body "**Review complete. Verdict: NEEDS {{OPERATOR}}**
 
@@ -275,7 +275,7 @@ Resolved by Reviewer (no action needed):
 
 ABANDON:
 ```bash
-gh issue edit N --remove-label "planned,ready,needs-operator,abandoned" 2>/dev/null || true
+gh issue edit N --remove-label "scoped,planned,ready,needs-operator,abandoned" 2>/dev/null || true
 gh issue edit N --add-label "abandoned"
 gh issue comment N --body "**Review complete. Verdict: ABANDON**
 

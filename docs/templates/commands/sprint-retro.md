@@ -17,7 +17,7 @@ argument-hint: [<sprint_id> | --no-questions]
 - **Layer 3 — Synthesis.** Surfaces 1-3 specific recommendations grounded in both layers.
 
 Optional `$1`:
-- `<sprint_id>` (e.g. `2026-W19`) — retro a specific sprint. Default: most recent closed sprint (manifest with an `## Outcomes` section).
+- `<sprint_id>` (e.g. `S20`) — retro a specific sprint. Default: most recent closed sprint (manifest with an `## Outcomes` section). Legacy `2026-W{N}` IDs still resolve for archived sprints.
 - `--no-questions` — skip Layer 2 (auto-derived only). Useful when chained from `/sprint-end` and you want to skip the questions for now.
 
 ## Phase A: Announce
@@ -37,11 +37,13 @@ gh auth status >/dev/null 2>&1 || { echo "Sprint retro abort: gh not authenticat
 
 ## Phase 1: Resolve target sprint
 
-If `$1` is a sprint ID (matches `YYYY-WNN`), use it.
+If `$1` is a sprint ID (matches `S\d+` or legacy `YYYY-WNN`), use it. For legacy IDs, also check `docs/sprints/archive/`.
 
 Otherwise, find the most recent closed sprint:
 ```bash
-ls docs/sprints/*.md 2>/dev/null | sort -r | head -5
+ls docs/sprints/S*.md 2>/dev/null | sed -n 's|.*/\(S[0-9]\{1,\}\)\.md|\1|p' | sort -V -r | head -5
+# Falls back to legacy if no S-numbered manifests exist
+[ -z "$(ls docs/sprints/S*.md 2>/dev/null)" ] && ls docs/sprints/*.md 2>/dev/null | grep -v '/archive/' | sort -r | head -5
 ```
 Read each in mtime order. The most recent one with an `## Outcomes` section is the target. If none has Outcomes, the most recent sprint hasn't been closed yet — print:
 ```
@@ -94,10 +96,10 @@ If `greenlit` label history isn't available (issue closed via direct commit with
 ### 2E. Cross-cutting trend
 Read the last 4 manifests' classification snapshots. Plot the cross-cutting % over time:
 ```
-2026-W16: 47%  ▼ baseline
-2026-W17: 55%  ▲ +8
-2026-W18: 62%  ▲ +7
-2026-W19: 71%  ▲ +9
+S16: 47%  ▼ baseline
+S17: 55%  ▲ +8
+S18: 62%  ▲ +7
+S19: 71%  ▲ +9
 ```
 Flag rising trend (3+ sprints of increase) as `⚠ module map likely needs an audit`.
 
