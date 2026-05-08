@@ -196,7 +196,17 @@ Or on abort:
 [N of N_total] #ISSUE → ABORTED (reason)
 ```
 
-### Step 4.5 — Tear down subagents and continue
+### Step 4.5 — Show updated sprint state
+
+After each plan completes, render the live sprint status so the operator gets a glanceable visual checkpoint of the bars filling in. The `/sprint` script is sub-second and uses zero LLM tokens — cheap to call after every issue:
+
+```bash
+node scripts/sprint.mjs
+```
+
+Print the output verbatim (the script handles its own fencing). This gives the operator a colored progress view between issues so they can scroll back through the run and see the sprint shape evolve. Don't add commentary or summary — the script's "Where you are now" line speaks for itself.
+
+### Step 4.6 — Tear down subagents and continue
 
 The planner-N and critic-N subagents from this issue's protocol are now idle. Abandon their `agentId`s — do not SendMessage them again. They idle out and get GC'd.
 
@@ -288,6 +298,16 @@ If count > 0, append a one-line note to the summary:
 ```
 
 If count = 0, omit the line.
+
+### Final sprint-state render
+
+As the last line of output, render the full sprint status — same call as Step 4.5, run again here so the bars + recommendation reflect the post-batch state and the operator can scan to the very bottom of the run for the definitive shape:
+
+```bash
+node scripts/sprint.mjs
+```
+
+Print verbatim. This is the canonical end-of-run anchor. The `/sprint` script's "Your next step" recommendation supersedes any verb suggestion you may have written in the "Determining 'Where you are now'" branches above — when they conflict, the script wins (it parses live label state, not the in-memory loop result).
 
 ## Standing rules
 
