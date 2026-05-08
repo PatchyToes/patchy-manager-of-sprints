@@ -55,11 +55,11 @@ Do not propose a new sprint. Do not append. One sprint at a time, period.
 ### 1B. Compute sprint identifier
 
 ```bash
-LAST_N=$(ls docs/sprints/S*.md docs/sprints/archive/S*.md 2>/dev/null | sed -n 's|.*/S\([0-9]\{1,\}\)\.md|\1|p' | sort -n | tail -1)
-SPRINT_ID="S$(( ${LAST_N:-19} + 1 ))"
+LAST_N=$(ls docs/sprints/S*.md docs/sprints/archive/S*.md 2>/dev/null | sed -n 's|.*/S0*\([0-9]\{1,\}\)\.md|\1|p' | sort -n | tail -1)
+SPRINT_ID=$(printf 'S%03d' $(( ${LAST_N:-0} + 1 )))
 ```
 
-Sprint IDs are sequential numbers (`S20`, `S21`, `S22`, …). On first run with no existing `S{N}.md` manifests, defaults to `S20`. Each subsequent run increments the highest existing number found in `docs/sprints/` or `docs/sprints/archive/`. Used for the manifest filename and the manifest header. Week-numbered IDs (`2026-W19`) are retired — kept only for already-archived sprints.
+Sprint IDs are sequential numbers, zero-padded to 3 digits (`S001`, `S002`, …, `S099`, `S100`, … through `S999`). Padding ensures stable lex sort across the full range and visual alignment in `/sprint` output. On first run with no existing `S{N}.md` manifests, defaults to `S001`. Each subsequent run increments the highest existing number found in `docs/sprints/` or `docs/sprints/archive/` (leading zeros stripped during numeric comparison). Used for the manifest filename and the manifest header. Week-numbered IDs (`2026-W19`) are retired — kept only for already-archived sprints.
 
 ### 1C. Confirm the modules map exists
 

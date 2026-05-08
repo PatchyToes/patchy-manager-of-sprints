@@ -126,10 +126,10 @@ If 3+ consecutive sprints show RISING cross-cutting %:
 - Render the trend so the operator can see it:
   ```
   Cross-cutting trend (last 4 sprints):
-    S16: 47%  baseline
-    S17: 55%  +8
-    S18: 62%  +7
-    S19: 71%  +9  ⚠ rising
+    S016: 47%  baseline
+    S017: 55%  +8
+    S018: 62%  +7
+    S019: 71%  +9  ⚠ rising
   ```
 
 If trend is flat or declining → HEALTHY (informational only).

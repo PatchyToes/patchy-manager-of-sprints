@@ -17,7 +17,7 @@ argument-hint: [<sprint_id> | --no-questions]
 - **Layer 3 — Synthesis.** Surfaces 1-3 specific recommendations grounded in both layers.
 
 Optional `$1`:
-- `<sprint_id>` (e.g. `S20`) — retro a specific sprint. Default: most recent closed sprint (manifest with an `## Outcomes` section). Legacy `2026-W{N}` IDs still resolve for archived sprints.
+- `<sprint_id>` (e.g. `S020`) — retro a specific sprint. Default: most recent closed sprint (manifest with an `## Outcomes` section). Legacy `2026-W{N}` IDs still resolve for archived sprints.
 - `--no-questions` — skip Layer 2 (auto-derived only). Useful when chained from `/sprint-end` and you want to skip the questions for now.
 
 ## Phase A: Announce
@@ -96,10 +96,10 @@ If `greenlit` label history isn't available (issue closed via direct commit with
 ### 2E. Cross-cutting trend
 Read the last 4 manifests' classification snapshots. Plot the cross-cutting % over time:
 ```
-S16: 47%  ▼ baseline
-S17: 55%  ▲ +8
-S18: 62%  ▲ +7
-S19: 71%  ▲ +9
+S016: 47%  ▼ baseline
+S017: 55%  ▲ +8
+S018: 62%  ▲ +7
+S019: 71%  ▲ +9
 ```
 Flag rising trend (3+ sprints of increase) as `⚠ module map likely needs an audit`.
 
