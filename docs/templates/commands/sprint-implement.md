@@ -87,16 +87,16 @@ Module: [name]
 Plan file: docs/protocol-test-runs/issue-N-{protocol}.md
 Sprint: [SPRINT_ID]
 
-DEPLOY FOOTPRINT:
+DEPLOY FOOTPRINT (recorded for /sprint-ship):
 - [Frontend only / Edge functions: X, Y / Migration: yes / etc.]
 - [Verification: which scripts to run after deploy]
 
-ISSUE MANAGEMENT CONTRACT (must be honored before push):
+ISSUE MANAGEMENT CONTRACT (must be honored before commit):
 - Out-of-scope items to file as tracking issues:
   - [list from ISSUE MANAGEMENT section, or "None"]
 - Master plan to update: [path, or "None"]
-- Commit message body MUST contain `Closes #N` on its own line (no PR — direct push to main)
-- Close-out: write `docs/debriefs/issue-N.md` after push
+- Commit message body MUST contain `Closes #N` on its own line (no PR — direct push to main, but the push happens at /sprint-ship time, not here)
+- Close-out: write `docs/debriefs/issue-N.md` after commit
 
 ---
 
@@ -106,42 +106,69 @@ Open a fresh Claude Code window in this repo and paste this prompt:
 You are implementing the plan for issue #N from sprint [SPRINT_ID].
 
 Read these in order:
-1. CLAUDE.md (especially the "Shipping changes" section — note: this codebase pushes to main directly, no PRs)
+1. CLAUDE.md (especially the "Shipping changes" section)
 2. docs/protocol-test-runs/issue-N-{protocol}.md (the plan)
 3. The issue: gh issue view N --comments
 
-Then implement the plan. When you ship:
-- Use the full deploy pipeline per CLAUDE.md (commit + push to main + functions deploy + db push as needed)
-- DO NOT create a PR — push directly to main, that's the codebase convention
+Then implement the plan. When the work is code-complete:
+
+**COMMIT, BUT DO NOT PUSH OR DEPLOY.** This sprint uses batched shipping — all
+sprint commits push together at /sprint-ship time. Per-issue pushes during a
+sprint cause AI agents in parallel windows to see dirty git state and burn
+tokens investigating false alarms. So:
+
+- `git add` and `git commit` only. NO `git push`.
+- NO `supabase functions deploy`.
+- NO `supabase db push`.
 - The commit message body MUST contain `Closes #N` on its own line. Example:
     fix(scope): one-line subject
 
     Closes #N
-- Verify with `git log -1 HEAD` before push that `Closes #N` is on its own line in the body
-- File the tracking issues listed in the plan's ISSUE MANAGEMENT section BEFORE pushing
-- SCRATCHPAD WRITES (cross-issue impact propagation):
-  - IF you discover during implementation that your work materially changes another sprint
-    issue's plan (you shipped a flag they assumed wouldn't exist, changed a signature they
-    referenced, found their issue body is wrong, etc.), append a one-line entry to the
-    sprint manifest's ## Sprint scratchpad / ### Active section BEFORE pushing. Find the
-    manifest with `ls docs/sprints/*.md | sort -r | head -1`. Format:
-      - YYYY-MM-DD · #N → affects #M: one-line note (e.g. "shipped flag X, plan #350 step 3 no longer needed")
-    DO NOT write entries for: same-file touches without behavior changes, vague "be careful"
-    notes, or your own bugs. The bar is "would this AI need this to plan correctly?"
-  - IF the scratchpad's ### Active section had an entry mentioning your issue (#N) and
-    your work resolved it, MOVE that entry from ### Active to ### Resolved with
-    strikethrough + a resolution note. Format:
-      - ~~YYYY-MM-DD · #shipped → affects #N: original note~~ → resolved YYYY-MM-DD: how addressed
-    This prevents stale entries from alarming downstream sessions about issues already fixed.
-- After push lands, write the debrief to docs/debriefs/issue-N.md
+  Verify with `git log -1 HEAD` after commit that `Closes #N` is on its own line.
+  GitHub will auto-close the issue when /sprint-ship pushes; the close keyword is
+  what triggers it.
+- File the tracking issues listed in the plan's ISSUE MANAGEMENT section BEFORE
+  the close-out commit.
+
+**APPEND THE TEST PLAN TO THE SPRINT MANIFEST.** The plan file's "Test Plan" or
+"Verification" section becomes the manual-UAT checklist for end-of-sprint testing.
+Find the active sprint manifest:
+
+  ls docs/sprints/S*.md | sort -V | tail -1
+
+Append a section under `## Test plan` (create if missing) using this format:
+
+  ### #N — [issue title]
+  - [ ] Test description (golden path)
+  - [ ] Test description (edge case)
+  - Implementer notes: [anything the operator should know — e.g. "tested locally with mocked Stripe", "needs UAT against live workspace"]
+
+Each test item MUST be a checkbox (`- [ ]`). /sprint-test walks these and applies
+needs-fix on failures. If the plan file has no Test Plan section, write one
+checkbox: "- [ ] Manual UAT — implementer to specify after work" and let the
+operator define the test at /sprint-test time.
+
+**SCRATCHPAD WRITES** (cross-issue impact propagation):
+- IF you discover during implementation that your work materially changes another
+  sprint issue's plan (shipped a flag they assumed wouldn't exist, changed a
+  signature they referenced, found their issue body is wrong), append a one-line
+  entry to the manifest's `## Sprint scratchpad / ### Active`. Format:
+    - YYYY-MM-DD · #N → affects #M: one-line note
+- IF the scratchpad's ### Active had an entry mentioning your issue (#N) and your
+  work resolved it, MOVE that entry to ### Resolved with strikethrough + resolution.
+
+**DEBRIEF.** After the close-out commit lands locally (NOT pushed), write
+`docs/debriefs/issue-N.md` with what you actually built, what you didn't, what
+surprised you. Operator reviews these at /sprint-end.
 
 The plan went through {three-round | one-round} planning + adversarial reviewer pass.
 Trust the plan; if you discover the plan is wrong mid-implementation, file a new issue
 and stop rather than improvise.
 ────────────────────────────────────────────────────────────
 
-When the commit lands on main with `Closes #N` in the body, GitHub auto-closes the issue
-and the sprint progress bar will update. No additional sprint-side action required.
+The commit lives on local main until /sprint-ship batches all sprint commits in
+one push + deploy cycle. The `implementing` label persists until that push fires
+GitHub's auto-close on `Closes #N`.
 
 ---
 
@@ -149,10 +176,10 @@ and the sprint progress bar will update. No additional sprint-side action requir
 Rendered the dispatch brief above for issue #N. This window stays as the orchestration parent — implementation work happens in the new window you're about to open.
 
 **Where you are now**
-Brief is staged but the implementation session hasn't started yet. The `implementing` label is now on #N to prevent parallel `/sprint-implement` runs from re-claiming it.
+Brief is staged but the implementation session hasn't started yet. The `implementing` label is now on #N to prevent parallel `/sprint-implement` runs from re-claiming it. Sprint uses batched shipping — the implementation session will commit but not push.
 
 **Your next step**
-Open a fresh Claude Code window in this repo and paste the dispatch brief above (the block between the dashed lines). When that session lands its commit on main with `Closes #N` in the body, GitHub auto-closes the issue. Run `/sprint-implement` here again for the next greenlit plan, or `/sprint` for status.
+Open a fresh Claude Code window in this repo and paste the dispatch brief above (the block between the dashed lines). When the implementation session lands its close-out commit locally (no push, no deploy), the `implementing` label persists and the test plan appears in the sprint manifest. Run `/sprint-implement` again here for the next greenlit plan, or `/sprint` for status. When all sprint issues are code-complete, `/sprint-ship` pushes + deploys + tests as a batch.
 ```
 
 ## Phase 4: Claim the issue with `implementing` label

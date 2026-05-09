@@ -1,6 +1,6 @@
 ---
 description: Sprint close-out ritual. Tally what shipped vs rolled, strip sprint/greenlit labels, update the manifest with outcomes, and recommend next steps. Run before /sprint-start to begin a new sprint cleanly. (Requires: an active sprint — issues labeled `sprint`.)
-argument-hint: [--dry-run]
+argument-hint: [--dry-run] [--force]
 ---
 
 # Sprint End (v1)
@@ -44,6 +44,75 @@ Sprint end: no sprint in flight (no issues carry the `sprint` label). Nothing to
 Run /sprint-start to begin a new sprint.
 ```
 Exit 0.
+
+## Phase 1.5: Pre-close gate (fail-closed)
+
+Sprint-end is a destructive operation — it closes the sprint, archives the manifest, strips labels. Closing prematurely loses operator attention on partial work. This gate refuses to proceed if anything in the sprint is unfinished, and tells {{OPERATOR}} exactly which verb unblocks each item.
+
+### 1.5A. Outstanding non-terminal sprint issues
+
+From the Phase 1 result, count issues that are open AND in a non-terminal state (anything except `abandoned` or closed). For each, classify:
+
+| state label | unblock verb |
+|---|---|
+| `scoped` (only) | `/sprint-plan` — never planned |
+| `planning` | wait — planner is in flight; if stuck >1hr run `/sprint-doctor` to detect stale lock |
+| `planned` (no `ready`) | wait — reviewer is in flight |
+| `ready` (no `greenlit`) | `/sprint-walkthrough` — needs operator decision |
+| `greenlit` (no `implementing`) | `/sprint-implement` — never started |
+| `implementing` (open) | wait for the implementation session to commit, OR if abandoned mid-flight, manually mark abandoned |
+| `needs-operator` | `/sprint-walkthrough` — escalation pending |
+
+### 1.5B. Outstanding test plan items
+
+```bash
+SPRINT_MANIFEST=$(ls docs/sprints/S*.md 2>/dev/null | sed -n 's|.*/\(S[0-9]\{1,\}\)\.md|\1|p' | sort -V | tail -1 | xargs -I {} echo "docs/sprints/{}.md")
+[ -z "$SPRINT_MANIFEST" ] && SPRINT_MANIFEST=$(ls docs/sprints/*.md 2>/dev/null | grep -v '/archive/' | sort -r | head -1)
+UNCHECKED=$(awk '/^## Test plan/,/^## /' "$SPRINT_MANIFEST" | grep -c '^- \[ \]' || true)
+```
+
+If the test plan section has any `- [ ]` (unchecked) items, those are unverified shipped issues. Unblock verb: `/sprint-test`.
+
+### 1.5C. Local commits not pushed
+
+```bash
+git fetch origin main
+AHEAD=$(git rev-list --count origin/main..HEAD)
+```
+
+If `AHEAD > 0`, the sprint has local commits not on origin. Unblock verb: `/sprint-ship`.
+
+### 1.5D. Print the gate result
+
+If ALL of the following are true, proceed to Phase 2:
+- Outstanding non-terminal sprint issues = 0
+- Unchecked test plan items = 0
+- Local commits ahead of origin = 0
+
+Otherwise, print the gate report and abort:
+
+```
+==========================================
+SPRINT END BLOCKED — sprint not yet complete
+==========================================
+
+Outstanding work:
+[for each non-terminal issue:]
+  - #N — title
+    State: <state label>
+    Unblock: <verb from table above>
+[for each unchecked test:]
+  - Test plan: K item(s) unchecked across L issue(s) → run /sprint-test
+[if AHEAD > 0:]
+  - Local commits not pushed: M commit(s) → run /sprint-ship
+
+Resolve the items above, then re-run /sprint-end. To force-close anyway (mark
+remaining issues as abandoned, accept unverified state), use `/sprint-end --force`.
+```
+
+If `--force` was passed, skip this gate. (Force-close is for genuine emergency exits — a corrupt sprint, an environment that needs reset. The default path is "fix it, then close.")
+
+Exit 1 unless --force.
 
 ## Phase 2: Resolve sprint identifier
 

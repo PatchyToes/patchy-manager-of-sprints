@@ -28,6 +28,8 @@ const skills = [
   'sprint-plan',
   'sprint-walkthrough',
   'sprint-implement',
+  'sprint-ship',
+  'sprint-test',
   'sprint-end',
   'sprint-retro',
   'sprint-doctor',

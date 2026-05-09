@@ -100,6 +100,7 @@ function stateForIssue(issue, isClosed) {
     return 'IMPLEMENTED';
   }
   if (labels.includes('abandoned')) return 'ABANDONED';
+  if (labels.includes('needs-fix')) return 'NEEDS_OPERATOR'; // shipped but failed test — same red as needs-operator; the verb is the same (walkthrough → plan a fix)
   if (labels.includes('needs-operator')) return 'NEEDS_OPERATOR';
   if (labels.includes('implementing')) return 'IMPLEMENTING';
   if (labels.includes('greenlit')) return 'GREENLIT';

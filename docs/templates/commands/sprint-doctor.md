@@ -68,7 +68,7 @@ For each, classify HEALTHY / DEGRADED / BROKEN. Print one line per check.
 
 Fetch label list once: `gh label list --limit 200 --json name --jq '.[].name'`
 
-Required set: `scoped`, `deferred`, `scope:abort`, `planning`, `planned`, `ready`, `needs-operator`, `abandoned`, `sprint`, `greenlit`, `implementing`, `tracking`.
+Required set: `scoped`, `deferred`, `scope:abort`, `planning`, `planned`, `ready`, `needs-operator`, `needs-fix`, `abandoned`, `sprint`, `greenlit`, `implementing`, `tracking`.
 
 For each missing label: DEGRADED. **Auto-repair candidate.**
 
@@ -297,7 +297,7 @@ If no `planning`-labeled issues exist: HEALTHY.
 For each repair candidate identified above, apply the fix. Print one line per repair: `[REPAIRED] <action>`.
 
 Safe auto-repairs:
-1. **Create missing required labels** — `gh label create <name> --color <color> --description <desc> 2>/dev/null || true`. Color/description per the existing pattern in `/scope-issue` and `/review-plans`. For `planning`, use color `fbca04` and description `Planner is actively planning this issue`.
+1. **Create missing required labels** — `gh label create <name> --color <color> --description <desc> 2>/dev/null || true`. Color/description per the existing pattern in `/scope-issue` and `/review-plans`. For `planning`, use color `fbca04` and description `Planner is actively planning this issue`. For `needs-fix`, use color `d93f0b` and description `Shipped but failed at /sprint-test — needs follow-up plan`.
 2. **Strip `sprint` from closed issues** — `gh issue edit N --remove-label sprint`. Closed-issue cleanup is unambiguous; reversal cost is one label add.
 3. **Strip stale `planning` locks (3E)** — `gh issue edit N --remove-label planning`. Only when the most recent comment is older than 1 hour; recovery is a label add if the operator was actually planning.
 

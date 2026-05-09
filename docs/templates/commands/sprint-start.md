@@ -355,6 +355,23 @@ read. Format:
 (empty — entries move here when their impact is addressed)
 
 ---
+
+## Test plan
+
+<!-- Per-issue manual UAT checklists. /sprint-implement appends a `### #N — title`
+subsection per shipped issue, populated from the plan file's "Test Plan" section.
+/sprint-test walks the checkboxes during end-of-sprint test sweep. Failed checks
+trigger needs-fix on that issue.
+
+Format:
+  ### #N — title
+  - [ ] Test description (golden path)
+  - [ ] Test description (edge case)
+  - Implementer notes: anything the operator should know before testing -->
+
+(empty — entries appended by /sprint-implement)
+
+---
 Status snapshot: see `gh issue list --label sprint` for live state.
 Run `/sprint` for a rendered status view.
 ```
