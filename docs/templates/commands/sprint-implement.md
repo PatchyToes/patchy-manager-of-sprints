@@ -158,8 +158,22 @@ operator define the test at /sprint-test time.
   work resolved it, MOVE that entry to ### Resolved with strikethrough + resolution.
 
 **DEBRIEF.** After the close-out commit lands locally (NOT pushed), write
-`docs/debriefs/issue-N.md` with what you actually built, what you didn't, what
-surprised you. Operator reviews these at /sprint-end.
+`docs/debriefs/issue-N.md` using the canonical 7-section format. Frontmatter
+(`issue`, `date`, `protocol`) plus these sections in order:
+
+1. **## Scope delta** — what was added, cut, or changed vs. plan
+2. **## Discoveries** — what execution revealed the plan didn't know
+3. **## Decisions made during execution** — `Decision:` + `Why:` for each non-trivial call
+4. **## What we tried that didn't work** — approaches attempted before the final solution,
+   with the EXACT reason each failed. The most important section. Without it,
+   future sessions retry abandoned approaches blind. Empty case is valid ("first
+   attempt landed") — but never skip the section itself.
+5. **## What broke** — execution-time breakage (build/test/deploy failures) before final shape
+6. **## Issues filed during implementation** — every GH issue created here, one-line context each
+7. **## Plan quality** — did the plan help or hinder? What would have made it better?
+
+Operator reviews these at /sprint-end and /sprint-retro. Section 4 feeds
+/sprint-instinct-curator pattern detection — write specifics, not summaries.
 
 The plan went through {three-round | one-round} planning + adversarial reviewer pass.
 Trust the plan; if you discover the plan is wrong mid-implementation, file a new issue

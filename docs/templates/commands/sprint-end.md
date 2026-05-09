@@ -289,7 +289,7 @@ gh issue edit N --remove-label "greenlit" 2>/dev/null || true
 gh issue edit N --remove-label "implementing" 2>/dev/null || true
 ```
 
-`greenlit` and `implementing` are sprint-scoped — they have no meaning outside an active sprint, so they get cleared too. State labels (`scoped`, `planned`, `ready`, `needs-operator`) are preserved — they remain valid even when the issue isn't in a sprint, and the next sprint may want to re-consume them. `abandoned` is stripped on closed-by-5A issues (closure makes the label moot).
+`greenlit` and `implementing` are sprint-scoped — they have no meaning outside an active sprint, so they get cleared too. State labels (`scoped`, `planned`, `ready`, `needs-operator`) are preserved — they remain valid even when the issue isn't in a sprint, and the next sprint can re-consume them. `abandoned` is stripped on closed-by-5A issues (closure makes the label moot).
 
 Process sequentially; on any single failure, log and continue. Report `Label cleanup: M of N succeeded, K abandoned-and-closed. Failures: [list].`
 
@@ -301,9 +301,32 @@ Use the Skill tool to invoke `sprint-retro` with args `{SPRINT_ID} --no-question
 
 If skill-from-skill invocation fails for any reason, inline the retro's auto-derived layer (Phases 1–3 + 5 + 6 of `/sprint-retro`, skipping Phase 4 questions). Don't block close-out on retro failure — log and continue.
 
+## Phase 6.5: Auto-surface instinct candidates (skip if --dry-run)
+
+After the retro, run the instinct curator in surface-only mode against this sprint's debriefs, manifest, and commits. Patterns that recurred 2+ times across the sprint surface as candidate memories — the operator reviews them later via standalone `/sprint-instinct-curator`. No memory writes happen at sprint-end.
+
+Resolve the sprint's start date from the manifest (or fall back to 14 days ago):
+
+```bash
+SPRINT_START=$(grep -oE '[0-9]{4}-[0-9]{2}-[0-9]{2}' "docs/sprints/${SPRINT_ID}.md" | head -1)
+[ -z "$SPRINT_START" ] && SPRINT_START=$(date -d '14 days ago' +%Y-%m-%d 2>/dev/null || date -v-14d +%Y-%m-%d)
+```
+
+Print:
+```
+🧠 Surfacing instinct candidates from {SPRINT_START}..today — running /sprint-instinct-curator --no-decisions.
+Read-only — no memory writes happen here. Operator reviews surfaced candidates standalone.
+```
+
+Use the Skill tool to invoke `sprint-instinct-curator` with args `--no-decisions --since $SPRINT_START`. The curator runs through gather → cluster → dedupe → render, then exits. Capture the candidate count + headlines for the Phase 8 summary.
+
+If skill-from-skill invocation fails for any reason, log `(curator skipped — invocation failed)` and continue. The curator is opt-in surface, not a blocking gate — close-out proceeds.
+
+After it completes, proceed to Phase 7.
+
 ## Phase 7: Auto-refresh scoped pool for next sprint (skip if --dry-run)
 
-After the retro, refresh the scoped pool so `/sprint-start` runs cleanly next time. This is the right moment for the refresh — the close-out is already a "wrap up the week" ritual where waiting a few minutes is fine.
+Refresh the scoped pool so `/sprint-start` runs cleanly next time. This is the right moment for the refresh — the close-out is already a "wrap up the week" ritual where waiting a few minutes is fine.
 
 Print:
 ```
@@ -347,8 +370,21 @@ ROLLED FORWARD (back in `scoped` pool, fresh classification):
   - #N5 — [title] — was ready, never walked
   - ...
 
+Instinct candidates surfaced: {Z}
+{If Z > 0:} Top candidates (run `/sprint-instinct-curator --since {SPRINT_START}` standalone to review/accept):
+  - [confidence] {pattern_summary} — {evidence_count} sources
+  - [confidence] {pattern_summary} — {evidence_count} sources
+  - ...
+
+**What just happened**
+Closed sprint {SPRINT_ID}. Shipped {K} of {N} ({X}%). Rolled {M} forward. Auto-resolved {A} scratchpad entries, carried {B} via issue comments, left {C} for next-sprint review. Auto-derived retro saved. Instinct curator surfaced {Z} memory candidates.
+
+**Where you are now**
+Clean state — no `sprint` or `greenlit` labels remain on open issues. Scoped pool refreshed and ready ({P} new + {Q} re-classified). Manifest at docs/sprints/{SPRINT_ID}.md has the full close-out audit. {If C > 0: {C} scratchpad entries surface in next /sprint-start's proposal.}
+
 **Your next step**
 - Resolve any NEEDS-{{OPERATOR}} items out-of-band: #N8
+- {If Z > 0:} `/sprint-instinct-curator --since {SPRINT_START}` to review the {Z} candidate memories surfaced above
 - `/sprint-retro` when you have a few minutes for the qualitative layer (auto-derived already saved)
 - `/sprint-start` when ready — pool is fresh, no wait
 ```

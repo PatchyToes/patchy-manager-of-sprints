@@ -7,7 +7,11 @@ argument-hint: (none)
 
 ## Step 1: Render the deterministic state
 
-Execute the bash command below. Output its **entire stdout verbatim** to the user — no commentary, no summary, no introduction, no interpretation, no formatting changes. The script handles its own fencing (table portion is wrapped in a code fence so bars render in monospace; narrative below is plain markdown for bold headings). Do not add or remove fences.
+Execute the bash command below via the Bash tool. **Then, in your assistant reply text, paste the script's complete stdout verbatim — every line, in order, exactly as the script emitted it.**
+
+The Bash tool's UI widget collapses long output and is NOT what the user sees as the rendered chart. **Your reply text is the canonical render.** If you skip the paste, the user sees a truncated widget instead of the chart and bars. Paste it.
+
+The script handles its own fencing (table portion is wrapped in a code fence so bars render in monospace; narrative below is plain markdown for bold headings). Do not add or remove fences. No commentary, no summary, no introduction, no interpretation around the paste.
 
 ```bash
 node scripts/sprint.mjs
@@ -39,7 +43,7 @@ When the advisory should be brief or skipped:
 - **Wait state** (everything in-flight, nothing actionable) → confirm the wait is intentional and note rough ETA if discernible. One sentence.
 - **Sprint complete** → confirm `/sprint-end` is the right call. One sentence.
 
-**Don't repeat the script's bars or summary line.** The advisory is *additional* signal — strategic ordering, not a re-statement.
+**The advisory is a SEPARATE block after the verbatim paste — different content, not a paraphrase.** The bars and summary line have already rendered (you pasted them in Step 1). The advisory's job is strategic ordering for ambiguous states, never a re-statement of what the bars said.
 
 ---
 
@@ -50,3 +54,9 @@ When the advisory should be brief or skipped:
 **Source of truth for the table + recommendation chain:** `scripts/sprint.mjs`. If /sprint's bar/color/state-mapping behavior needs to change, edit the script, not this file.
 
 **Source of truth for the advisory rules:** this file. Update the "When the advisory adds genuine value" section if new strategic ordering patterns emerge.
+
+## Standing rules
+
+- **Never acts — pure read.** This skill renders state and offers a strategic advisory. It does not edit labels, write comments, or modify any files. If a state mutation is needed, the advisory points to the verb that does it.
+- **The Step-1 paste is mandatory; the Step-2 advisory is additive.** Always paste the script's full stdout verbatim in your reply text — that's the chart the user reads. The advisory comes AFTER as a separate block with different content (strategic ordering for ambiguous states), never a paraphrase of the bars or summary line.
+- **Source of truth split.** Bar rendering / state mapping → `scripts/sprint.mjs`. Advisory framing → this file. Don't blur the line.

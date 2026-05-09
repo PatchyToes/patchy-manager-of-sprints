@@ -402,7 +402,7 @@ Dispatch the reviewer as a fresh one-shot subagent using the Agent tool:
 - `model: opus` — Pin Opus regardless of session model.
 - Plan file path: `docs/protocol-test-runs/issue-$1-one-round.md`
 - Issue number $1 (explicit)
-- Instruction: "You are the Reviewer. Run the full review-plans protocol on the plan file at `docs/protocol-test-runs/issue-$1-one-round.md`. Issue number for GitHub write-back is $1. Sidecars are available at `docs/protocol-test-runs/issue-$1/` if you want trajectory beyond v2."
+- Instruction: "You are the Reviewer. Run the full review-plans protocol on the plan file at `docs/protocol-test-runs/issue-$1-one-round.md`. Issue number for GitHub write-back is $1. Sidecars at `docs/protocol-test-runs/issue-$1/` for trajectory beyond v2."
 
 **If the dispatch fails:**
 ```bash

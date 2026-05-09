@@ -215,7 +215,7 @@ Same as READY-PLAN, but **prepend a callout** above the 4-beat with the reviewer
 **The reviewer's question:**
 > [Verbatim quote from the reviewer comment — the exact escalation. If the reviewer
 > flagged multiple decisions, surface ONE root question that subsumes them, with the
-> sub-points as defaulted overrides ("default to X, override if you want").]
+> sub-points as defaulted overrides ("default to X, override if needed").]
 
 [Then the standard 4-beat body — Context first / The problem / What this fix does / Trade-offs.]
 ```
@@ -342,6 +342,12 @@ LABEL WRITES APPLIED ([count]):
 - #N: -ready, +abandoned
 ...
 
+**What just happened**
+Walked [N] items across [M] modules. Decisions: [K] greenlit, [L] abandoned, [M2] amended, [P] cleared-for-planning, [Q] deferred, [Z] close-and-replace. Filed [R] sibling issues during the pass.
+
+**Where you are now**
+[K] plans now greenlit and ready for implementation. [Q] items deferred back to the scoped pool. [P] items routed back to /sprint-plan with verdicts assigned. [R] new sibling issues need scoping. {If skipped > 0: [skipped count] items excluded from this walkthrough — see SKIPPED block above for remediation per bucket.}
+
 **Your next step**
 [Pick the highest-leverage next action based on what just happened:
  - If there are now greenlit-not-implementing items → /sprint-implement
@@ -368,7 +374,7 @@ For each authorized action, perform the GitHub write. For `close N abandoned iss
 ## Standing rules
 
 - **The 4-beat format does not get abbreviated.** This is a saved operator preference. All four item shapes use it. If you find yourself shortening or restructuring, stop.
-- **One root question per item.** When a NEEDS-OPERATOR-PLAN or SCOPE-GATE-STUCK item has multiple sub-questions, find the ONE root question whose answer subsumes the others, then surface sub-questions as defaulted overrides ("default to X, override if you want"). Do not present a menu of N parallel questions.
+- **One root question per item.** When a NEEDS-OPERATOR-PLAN or SCOPE-GATE-STUCK item has multiple sub-questions, find the ONE root question whose answer subsumes the others, then surface sub-questions as defaulted overrides ("default to X, override if needed"). Do not present a menu of N parallel questions.
 - **Write labels and the WALKTHROUGH-DECISION comment per-item, not at the end.** State must persist across operator pauses or session crashes. The closing tally is a summary, not the source of truth.
 - **One item at a time.** Never dump multiple items in one response. Pacing is set by operator readiness.
 - **Honor scope corrections without litigation.** Operator override is final. Reviewer's verdict is advisory inside the walkthrough.

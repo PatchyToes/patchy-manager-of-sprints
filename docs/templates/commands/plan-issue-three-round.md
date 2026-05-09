@@ -605,8 +605,24 @@ Skip this step only if the plan was ABORTED.
     - **Decision:** [what was decided]
     - **Why:** [the principle, not just the fact]
 
+    ## What we tried that didn't work
+    Approaches attempted before the final solution. The most important section
+    of this debrief — without it, future sessions blindly retry failed approaches.
+    For each, write the EXACT reason it didn't work — error message, principle
+    violation, structural mismatch. "Didn't work" alone is not useful.
+
+    - **[approach tried]** — failed because: [exact reason / error / why it was wrong]
+    - **[approach tried]** — failed because: [exact reason / error / why it was wrong]
+
+    If the final shape worked first try, write: "No failed approaches — first
+    attempt landed." Do not invent failures to fill the section, but do not
+    skip it either — the empty case is itself a useful signal (the plan was
+    well-shaped).
+
     ## What broke
-    Bugs, fragile patterns, things that failed before they worked.
+    Bugs, fragile patterns, things that failed during execution before they worked.
+    Different from the section above: this is execution-time breakage (build broke,
+    test crashed, deploy errored), not approaches abandoned by design.
 
     ## Issues filed during implementation
     Every GitHub issue created during this work, with one-line context.
@@ -661,7 +677,7 @@ Dispatch the reviewer as a fresh one-shot subagent using the Agent tool. Pass:
 - `model: opus` — Reviewer judgment is load-bearing (verdict survives adversarial pass, decides what reaches {{OPERATOR}}). Pin Opus regardless of session model.
 - The plan file path: `docs/protocol-test-runs/issue-$1-three-round.md`
 - The issue number $1 (explicit — do not rely on parsing)
-- This instruction: "You are the Reviewer. Run the full review-plans protocol on the plan file at `docs/protocol-test-runs/issue-$1-three-round.md`. Issue number for GitHub write-back is $1. Sidecars are available at `docs/protocol-test-runs/issue-$1/` if you want to dig into trajectory beyond v4."
+- This instruction: "You are the Reviewer. Run the full review-plans protocol on the plan file at `docs/protocol-test-runs/issue-$1-three-round.md`. Issue number for GitHub write-back is $1. Sidecars at `docs/protocol-test-runs/issue-$1/` for trajectory beyond v4."
 
 **If the Agent dispatch fails or the subagent errors:**
 ```bash

@@ -292,6 +292,24 @@ From the cached `/tmp/sd-all-open.json`, find issues labeled `planning`. For eac
 
 If no `planning`-labeled issues exist: HEALTHY.
 
+## Phase 3.5: Skill source contract check
+
+Run the static portion of `/sprint-system-comply` to verify that every sprint-* skill template still satisfies its contract (no-hedge vocab, fail-closed Phase 0, anchoring closer, required phases, etc.). Skill drift is the kind of slow rot that's invisible until it bites — this fold-in keeps it on the doctor's regular sweep.
+
+Use the Skill tool to invoke `sprint-system-comply` with arg `--quiet`. The static-only quiet mode runs in ~5 seconds and emits a single verdict line plus any FAIL findings.
+
+Capture:
+- `CONTRACT_VERDICT`: HEALTHY | DEGRADED | BROKEN | UNCHECKED (last only if invocation failed)
+- `CONTRACT_FAILS`: list of FAIL findings as one-liners
+
+If skill-from-skill invocation fails, log `[Phase 3.5] sprint-system-comply unreachable — contract drift not checked this run` and continue with `CONTRACT_VERDICT=UNCHECKED`. Don't block the doctor on comply failure.
+
+The verdict folds into Phase 5's report:
+- HEALTHY → adds one line under ✓ HEALTHY: `Skill source contract: clean`
+- DEGRADED → moves to ⚠ DEGRADED with the FAILs listed
+- BROKEN → moves to ✗ BROKEN with the FAILs listed
+- UNCHECKED → moves to ⚠ DEGRADED with note `comply unreachable`
+
 ## Phase 4: Auto-repair (only if --repair passed)
 
 For each repair candidate identified above, apply the fix. Print one line per repair: `[REPAIRED] <action>`.
@@ -315,6 +333,12 @@ If `--repair` was not passed, skip this phase. The DEGRADED/BROKEN sections of t
 ==========================================
 PIPELINE HEALTH — YYYY-MM-DD
 ==========================================
+
+**What just happened**
+Audited IK files, label hygiene, plan-file integrity, sprint-state drift, module assignment quality, and skill-source contract. Found [H] HEALTHY checks, [D] DEGRADED, [B] BROKEN. {If --repair was passed: Applied [R] auto-repairs.} {If CONTRACT_VERDICT != HEALTHY: Skill contract: {CONTRACT_VERDICT}.}
+
+**Where you are now**
+System verdict: **{HEALTHY | DEGRADED | BROKEN}**. {If BROKEN: Pipeline is in inconsistent state — operator action required before normal sprint flow.} {If DEGRADED: Pipeline works but is suboptimal; address at next routine pass.} {If HEALTHY: All checks clean, pipeline in steady state.}
 
 [If --quiet was passed, omit the ✓ section. Otherwise:]
 

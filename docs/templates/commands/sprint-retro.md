@@ -148,7 +148,7 @@ Print the three questions one at a time. Wait for each response before moving on
 ### Question 1
 ```
 1/3 — Did the sprint feel right-sized?
-   Reply: too-big | right | too-small | (free-text if you want to elaborate)
+   Reply: too-big | right | too-small | (or free-text for elaboration)
 ```
 
 ### Question 2
@@ -254,7 +254,10 @@ RETRO COMPLETE — {SPRINT_ID}
 ==========================================
 
 **What just happened**
-Stored: `docs/sprints/{SPRINT_ID}.md` (`## Retro` section).
+Retro complete for {SPRINT_ID}. Throughput: {SHIPPED}/{SPRINT_SIZE} ({SHIP_RATE}%). Module ship rates: {top-3 modules with rates}. Cross-cutting trend: {direction vs prior sprint}. Surfaced {N} recommendations for next sprint{ + {Q} operator answers if Layer 2 ran}.
+
+**Where you are now**
+Retro section appended to `docs/sprints/{SPRINT_ID}.md`. Recommendations are suggestions, not auto-applied — operator decides which to act on. {If process notes were captured during sprint: Layer 1.5 process notes folded into the synthesis.}
 
 **Your next step**
 - Apply recommendations to your `/sprint-start` command (e.g., `--size` override)

@@ -33,6 +33,8 @@ const skills = [
   'sprint-end',
   'sprint-retro',
   'sprint-doctor',
+  'sprint-system-comply',
+  'sprint-instinct-curator',
 ];
 
 // Build-time include macro: {{INCLUDE:name}} → contents of docs/templates/snippets/<name>.md.
