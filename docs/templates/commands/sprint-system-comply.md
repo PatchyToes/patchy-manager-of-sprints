@@ -19,7 +19,7 @@ Optional `$1`:
 - `--write-report` — write the audit report to `tmp/sprint-system-comply-{TIMESTAMP}.md` instead of stdout-only
 - `--quiet` — emit only the system verdict line + any FAIL findings; suppress the per-skill PASS/WARN table. Used by `/sprint-doctor`'s auto-chain to fold contract-drift into the pipeline-health report without doubling its output volume.
 
-If no skill name is given, audits the full sprint-* set: `enrich-issue scope-issue batch-scope plan-issue-one-round plan-issue-three-round review-plans sprint-start sprint sprint-plan sprint-walkthrough sprint-implement sprint-ship sprint-test sprint-end sprint-retro sprint-doctor sprint-system-comply sprint-instinct-curator`.
+If no skill name is given, audits the full sprint-* set: `enrich-issue scope-issue batch-scope plan-issue-one-round plan-issue-three-round review-plans sprint-start sprint sprint-plan sprint-walkthrough sprint-implement sprint-ship sprint-test sprint-end sprint-retro sprint-doctor sprint-system-comply sprint-instinct-curator canary-watch`.
 
 ## Phase A: Announce
 
@@ -49,7 +49,7 @@ TARGETS=()
 if [ -n "$1" ] && [ "$1" != "--dynamic" ] && [ "$1" != "--write-report" ]; then
   TARGETS+=("$1")
 else
-  TARGETS=(enrich-issue scope-issue batch-scope plan-issue-one-round plan-issue-three-round review-plans sprint-start sprint sprint-plan sprint-walkthrough sprint-implement sprint-ship sprint-test sprint-end sprint-retro sprint-doctor sprint-system-comply sprint-instinct-curator)
+  TARGETS=(enrich-issue scope-issue batch-scope plan-issue-one-round plan-issue-three-round review-plans sprint-start sprint sprint-plan sprint-walkthrough sprint-implement sprint-ship sprint-test sprint-end sprint-retro sprint-doctor sprint-system-comply sprint-instinct-curator canary-watch)
 fi
 ```
 

@@ -112,6 +112,39 @@ The dry-run prints the SQL that's about to apply — surfaced for the record. Th
 
 If dry-run shows unexpected SQL or db push errors: stop immediately and print the error verbatim. The migration is partially applied at that point and needs operator review.
 
+## Phase 5.5: Post-deploy canary watch
+
+Skip if Phase 2's footprint detected nothing (`HAS_FRONTEND + HAS_FUNCTIONS + HAS_MIGRATIONS == 0`) — there's nothing for a canary to verify against.
+
+Skip if `.claude/canary-watch.json` does not exist — canary not configured for this repo.
+
+Otherwise, invoke the canary script directly via Bash. **Not via Skill-tool dispatch** — see `/sprint-plan`'s precedent on inlining over nested-subagent dispatch. The script handles its own poll-until-ready (Vercel cold start tolerance), always writes `tmp/canary-watch-latest.json` (even on internal exception), and emits an exit code 0/1/2.
+
+```bash
+if [ -f .claude/canary-watch.json ] && [ "$((HAS_FRONTEND + HAS_FUNCTIONS + HAS_MIGRATIONS))" -gt 0 ]; then
+  echo ""
+  echo "Running post-deploy canary..."
+  node scripts/canary-watch.mjs >/dev/null 2>&1 || true   # exit code captured via JSON
+  if [ -f tmp/canary-watch-latest.json ]; then
+    CANARY_VERDICT=$(node -p "require('./tmp/canary-watch-latest.json').verdict" 2>/dev/null || echo "ERROR")
+    echo "Canary verdict: $CANARY_VERDICT"
+    if [ "$CANARY_VERDICT" = "CRITICAL" ] || [ "$CANARY_VERDICT" = "ERROR" ]; then
+      node -e 'const j=require("./tmp/canary-watch-latest.json"); console.log("⚠ Canary findings:"); (j.findings||[]).forEach(f=>console.log(" - "+f)); if(j.error) console.log(" - error: "+j.error);'
+    fi
+  else
+    echo "Canary script produced no output — skipping verdict"
+    CANARY_VERDICT="ERROR"
+  fi
+fi
+```
+
+Three guards against bash fragility:
+1. Script always emits JSON to `tmp/canary-watch-latest.json` (even on internal exception), so `latest.json` should always exist after the script returns
+2. `node -p` reads from disk — single-pass parse, no piping
+3. Outer `[ -f tmp/canary-watch-latest.json ]` check handles the case where the script crashed before disk write
+
+**Canary failures do NOT roll back the deploy.** The push has already landed; this is post-flight observation. CRITICAL findings get surfaced loudly in Phase 6's summary. Operator decides whether to revert, hotfix, or accept.
+
 ## Phase 6: Final summary
 
 ```bash
@@ -127,7 +160,7 @@ After the script output, append:
 Pushed N commits to origin/main. Vercel deploying frontend; supabase functions and migrations applied. GitHub auto-closed K issues from `Closes #N` keywords in the commits.
 
 **Where you are now**
-The sprint is on production. Tests haven't run yet — the implementations are deployed but not verified.
+The sprint is on production. {If canary ran: Canary verdict: $CANARY_VERDICT.} {If CANARY_VERDICT in [CRITICAL, ERROR]: see canary findings above; investigate before /sprint-test.} Tests haven't run yet — implementations are deployed but not verified.
 
 **Your next step**
 `/sprint-test` — walk the sprint manifest's `## Test plan` section as a consolidated UAT checklist. Failures get reopened with `needs-fix`; passes stay closed.
